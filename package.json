@@ -1,0 +1,24 @@
+{
+  "name": "backend_api",
+  "version": "1.0.0",
+  "description": "MoveUp backend",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "git": "^0.1.5",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.7.2",
+    "multer": "^2.2.0",
+    "nodemailer": "^9.0.1"
+  }
+}

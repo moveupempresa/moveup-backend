@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm install mongoose)",
+      "PowerShell(npm install express bcryptjs jsonwebtoken dotenv)",
+      "PowerShell(node --check index.js)",
+      "PowerShell(node --check models/User.js)",
+      "PowerShell(node --check controllers/authController.js)",
+      "PowerShell(node --check routes/authRoutes.js)",
+      "PowerShell(node --check config/db.js)"
+    ]
+  }
+}

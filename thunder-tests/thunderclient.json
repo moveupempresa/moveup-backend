@@ -1,0 +1,38 @@
+{
+  "client": "Thunder Client",
+  "collectionName": "MoveUp Backend API",
+  "dateExported": "2026-06-25T00:00:00.000Z",
+  "version": "1.2",
+  "folders": [],
+  "requests": [
+    {
+      "_id": "signup-001",
+      "colId": "moveup-backend-api",
+      "containerId": "",
+      "name": "Signup",
+      "url": "http://localhost:3000/api/auth/signup",
+      "method": "POST",
+      "sortNum": 10000,
+      "created": "2026-06-25T00:00:00.000Z",
+      "modified": "2026-06-25T00:00:00.000Z",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "params": [],
+      "body": {
+        "type": "json",
+        "raw": "{\n  \"email\": \"test.user@example.com\",\n  \"username\": \"testuser\",\n  \"password\": \"Password123!\"\n}",
+        "form": []
+      },
+      "tests": []
+    }
+  ],
+  "ref": "moveup-backend-api",
+  "settings": {
+    "headers": [],
+    "options": {}
+  }
+}
