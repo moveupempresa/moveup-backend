@@ -7,7 +7,8 @@ const createEvent = async (req, res) => {
     return res.status(400).json({ message: 'La portada del evento es requerida' });
   }
 
-  const { title, description, style, city, country, address, reservationEnabled, status } = req.body;
+  const { title, description, city, country, reservationEnabled, status } = req.body;
+  const style = JSON.parse(req.body.style || '[]');
 
   const coverMediaUrl = `/uploads/${req.file.filename}`;
   const coverMediaType = ALLOWED_IMAGE_TYPES.includes(req.file.mimetype) ? 'image' : 'video';
@@ -21,7 +22,6 @@ const createEvent = async (req, res) => {
       style,
       city,
       country,
-      address: address || null,
       reservationEnabled: reservationEnabled === 'true' || reservationEnabled === true,
       coverMediaType,
       coverMediaUrl,
