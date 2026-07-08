@@ -1,4 +1,5 @@
 const Event = require('../models/Event');
+const Session = require('../models/Session');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
 
@@ -40,4 +41,26 @@ const createEvent = async (req, res) => {
   return res.status(201).json({ event: event.toJSON() });
 };
 
-module.exports = { createEvent };
+const getMyEvents = async (req, res) => {
+  const events = await Event.find({ ownerUserId: req.userId }).sort({ createdAt: -1 });
+
+  const eventIds = events.map((e) => e._id);
+  const sessions = await Session.find({ eventId: { $in: eventIds } }).sort({ startDatetime: 1 });
+
+  const sessionsByEvent = {};
+  for (const session of sessions) {
+    const key = session.eventId.toString();
+    if (!sessionsByEvent[key]) sessionsByEvent[key] = [];
+    sessionsByEvent[key].push(session.toJSON());
+  }
+
+  const result = events.map((event) => {
+    const eventJson = event.toJSON();
+    eventJson.sessions = sessionsByEvent[event.id] || [];
+    return eventJson;
+  });
+
+  return res.json({ events: result });
+};
+
+module.exports = { createEvent, getMyEvents };
