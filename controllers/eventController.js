@@ -42,6 +42,66 @@ const createEvent = async (req, res) => {
   return res.status(201).json({ event: event.toJSON() });
 };
 
+const updateEvent = async (req, res) => {
+  const { eventId } = req.params;
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+  if (event.ownerUserId.toString() !== req.userId) {
+    if (req.file) deleteUploadedFile(`/uploads/${req.file.filename}`);
+    return res.status(403).json({ message: 'No autorizado' });
+  }
+
+  const {
+    title,
+    description,
+    city,
+    country,
+    eventType,
+    locationType,
+    visibility,
+    reservationEnabled,
+    status,
+  } = req.body;
+
+  if (title !== undefined) event.title = title;
+  if (description !== undefined) event.description = description;
+  if (city !== undefined) event.city = city;
+  if (country !== undefined) event.country = country;
+  if (eventType !== undefined) event.eventType = eventType;
+  if (locationType !== undefined) event.locationType = locationType;
+  if (visibility !== undefined) event.visibility = visibility;
+  if (reservationEnabled !== undefined) {
+    event.reservationEnabled = reservationEnabled === 'true' || reservationEnabled === true;
+  }
+  if (req.body.style !== undefined) event.style = JSON.parse(req.body.style || '[]');
+  if (status !== undefined) {
+    if (status === 'published' && event.status !== 'published') event.publishedAt = new Date();
+    event.status = status;
+  }
+
+  const previousCoverMediaUrl = event.coverMediaUrl;
+  if (req.file) {
+    event.coverMediaUrl = `/uploads/${req.file.filename}`;
+    event.coverMediaType = ALLOWED_IMAGE_TYPES.includes(req.file.mimetype) ? 'image' : 'video';
+  }
+
+  try {
+    await event.save();
+  } catch (err) {
+    if (req.file) deleteUploadedFile(event.coverMediaUrl);
+    if (err.name === 'ValidationError') {
+      const message = Object.values(err.errors).map((e) => e.message).join(', ');
+      return res.status(400).json({ message });
+    }
+    throw err;
+  }
+
+  if (req.file && previousCoverMediaUrl) deleteUploadedFile(previousCoverMediaUrl);
+
+  return res.status(200).json({ event: event.toJSON() });
+};
+
 const getMyEvents = async (req, res) => {
   const events = await Event.find({ ownerUserId: req.userId }).sort({ createdAt: -1 });
 
@@ -73,4 +133,4 @@ const getMyEvents = async (req, res) => {
   return res.json({ events: result });
 };
 
-module.exports = { createEvent, getMyEvents };
+module.exports = { createEvent, updateEvent, getMyEvents };
