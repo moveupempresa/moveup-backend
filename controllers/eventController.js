@@ -102,6 +102,23 @@ const updateEvent = async (req, res) => {
   return res.status(200).json({ event: event.toJSON() });
 };
 
+const deleteEvent = async (req, res) => {
+  const { eventId } = req.params;
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+  if (event.ownerUserId.toString() !== req.userId) {
+    return res.status(403).json({ message: 'No autorizado' });
+  }
+
+  await Session.deleteMany({ eventId });
+  await Pack.deleteMany({ eventId });
+  await event.deleteOne();
+  deleteUploadedFile(event.coverMediaUrl);
+
+  return res.status(200).json({ message: 'Evento eliminado' });
+};
+
 const getMyEvents = async (req, res) => {
   const events = await Event.find({ ownerUserId: req.userId }).sort({ createdAt: -1 });
 
@@ -133,4 +150,4 @@ const getMyEvents = async (req, res) => {
   return res.json({ events: result });
 };
 
-module.exports = { createEvent, updateEvent, getMyEvents };
+module.exports = { createEvent, updateEvent, deleteEvent, getMyEvents };

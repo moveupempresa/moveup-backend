@@ -1,5 +1,5 @@
 const express = require('express');
-const { createEvent, updateEvent, getMyEvents } = require('../controllers/eventController');
+const { createEvent, updateEvent, deleteEvent, getMyEvents } = require('../controllers/eventController');
 const {
   createSession,
   getEventSessions,
@@ -23,6 +23,7 @@ router.use(requireAuth, userRateLimit);
 router.post('/', handleCoverUpload, createEvent);
 router.get('/my', getMyEvents);
 router.put('/:eventId', handleCoverUpload, updateEvent);
+router.delete('/:eventId', deleteEvent);
 router.get('/:eventId/sessions', getEventSessions);
 router.post('/:eventId/sessions', createSession);
 router.put('/:eventId/sessions/:sessionId', updateSession);
