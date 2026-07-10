@@ -1,5 +1,6 @@
 const Event = require('../models/Event');
 const Session = require('../models/Session');
+const Pack = require('../models/Pack');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
 
@@ -46,6 +47,7 @@ const getMyEvents = async (req, res) => {
 
   const eventIds = events.map((e) => e._id);
   const sessions = await Session.find({ eventId: { $in: eventIds } }).sort({ startDatetime: 1 });
+  const packs = await Pack.find({ eventId: { $in: eventIds } }).sort({ createdAt: 1 });
 
   const sessionsByEvent = {};
   for (const session of sessions) {
@@ -54,9 +56,17 @@ const getMyEvents = async (req, res) => {
     sessionsByEvent[key].push(session.toJSON());
   }
 
+  const packsByEvent = {};
+  for (const pack of packs) {
+    const key = pack.eventId.toString();
+    if (!packsByEvent[key]) packsByEvent[key] = [];
+    packsByEvent[key].push(pack.toJSON());
+  }
+
   const result = events.map((event) => {
     const eventJson = event.toJSON();
     eventJson.sessions = sessionsByEvent[event.id] || [];
+    eventJson.packs = packsByEvent[event.id] || [];
     return eventJson;
   });
 
