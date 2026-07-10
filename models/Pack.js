@@ -20,6 +20,7 @@ const packSchema = new mongoose.Schema(
     maxSelectableSessions: { type: Number, default: null },
     isUnlimitedCapacity: { type: Boolean, default: false },
     capacity: { type: Number, default: null },
+    sessionIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Session' }],
   },
   {
     timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
@@ -30,6 +31,7 @@ const packSchema = new mongoose.Schema(
         ret.id = ret._id.toString();
         ret.eventId = ret.eventId.toString();
         ret.price = parseFloat(ret.price.toString());
+        ret.sessionIds = ret.sessionIds.map((id) => id.toString());
         delete ret._id;
         return ret;
       },

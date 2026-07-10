@@ -1,5 +1,6 @@
 const Event = require('../models/Event');
 const Pack = require('../models/Pack');
+const Session = require('../models/Session');
 
 const createPack = async (req, res) => {
   const { eventId } = req.params;
@@ -20,7 +21,19 @@ const createPack = async (req, res) => {
     maxSelectableSessions,
     isUnlimitedCapacity,
     capacity,
+    sessionIds,
   } = req.body;
+
+  const requestedSessionIds = Array.isArray(sessionIds) ? sessionIds : [];
+  if (requestedSessionIds.length > 0) {
+    const matchingCount = await Session.countDocuments({
+      _id: { $in: requestedSessionIds },
+      eventId,
+    });
+    if (matchingCount !== requestedSessionIds.length) {
+      return res.status(400).json({ message: 'Alguna sesión no pertenece a este evento' });
+    }
+  }
 
   let pack;
   try {
@@ -35,6 +48,7 @@ const createPack = async (req, res) => {
       maxSelectableSessions: maxSelectableSessions != null ? Number(maxSelectableSessions) : null,
       isUnlimitedCapacity: isUnlimitedCapacity === 'true' || isUnlimitedCapacity === true,
       capacity: capacity != null ? Number(capacity) : null,
+      sessionIds: requestedSessionIds,
     });
   } catch (err) {
     if (err.name === 'ValidationError') {
