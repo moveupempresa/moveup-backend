@@ -64,7 +64,7 @@ const GALLERY_LIMIT = 12;
 
 const addGalleryImage = async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ message: 'No se recibió ninguna imagen' });
+    return res.status(400).json({ message: 'No se recibió ningún archivo' });
   }
 
   const profile = await Profile.findOne({ userId: req.userId });
@@ -77,7 +77,7 @@ const addGalleryImage = async (req, res) => {
     deleteUploadedFile(`/uploads/${req.file.filename}`);
     return res
       .status(400)
-      .json({ message: `Solo puedes tener hasta ${GALLERY_LIMIT} imágenes en tu galería` });
+      .json({ message: `Solo puedes tener hasta ${GALLERY_LIMIT} elementos en tu galería` });
   }
 
   profile.gallery.push(`/uploads/${req.file.filename}`);
