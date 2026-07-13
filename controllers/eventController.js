@@ -1,8 +1,11 @@
 const Event = require('../models/Event');
 const Session = require('../models/Session');
 const Pack = require('../models/Pack');
+const User = require('../models/User');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
+
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const createEvent = async (req, res) => {
   if (!req.file) {
@@ -153,8 +156,31 @@ const getMyEvents = async (req, res) => {
 };
 
 const getPublicEvents = async (req, res) => {
-  const events = await Event.find({ visibility: 'public', status: 'published' }).sort({ createdAt: -1 });
-  const result = await attachSessionsAndPacks(events);
+  const { city, style, username, dateFrom } = req.query;
+
+  const filter = { visibility: 'public', status: 'published' };
+  if (city) filter.city = { $regex: escapeRegex(city), $options: 'i' };
+  if (style) filter.style = { $regex: `^${escapeRegex(style)}$`, $options: 'i' };
+  if (username) {
+    const owner = await User.findOne({
+      username: { $regex: `^${escapeRegex(username)}$`, $options: 'i' },
+    });
+    if (!owner) return res.json({ events: [] });
+    filter.ownerUserId = owner._id;
+  }
+
+  const events = await Event.find(filter).sort({ createdAt: -1 });
+  let result = await attachSessionsAndPacks(events);
+
+  if (dateFrom) {
+    const fromDate = new Date(dateFrom);
+    if (!Number.isNaN(fromDate.getTime())) {
+      result = result.filter((e) =>
+        e.sessions.some((s) => new Date(s.startDatetime) >= fromDate)
+      );
+    }
+  }
+
   return res.json({ events: result });
 };
 
