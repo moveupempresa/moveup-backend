@@ -1,4 +1,6 @@
+const mongoose = require('mongoose');
 const Profile = require('../models/Profile');
+const User = require('../models/User');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 
 const getMyProfile = async (req, res) => {
@@ -7,6 +9,23 @@ const getMyProfile = async (req, res) => {
     return res.status(404).json({ message: 'Perfil no encontrado' });
   }
   return res.status(200).json({ profile: profile.toJSON() });
+};
+
+const getUserProfile = async (req, res) => {
+  const { userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(404).json({ message: 'Perfil no encontrado' });
+  }
+
+  const [profile, user] = await Promise.all([
+    Profile.findOne({ userId }),
+    User.findById(userId),
+  ]);
+  if (!profile || !user) {
+    return res.status(404).json({ message: 'Perfil no encontrado' });
+  }
+
+  return res.status(200).json({ profile: profile.toJSON(), username: user.username });
 };
 
 const updateMyProfile = async (req, res) => {
@@ -105,4 +124,11 @@ const removeGalleryImage = async (req, res) => {
   return res.status(200).json({ profile: profile.toJSON() });
 };
 
-module.exports = { getMyProfile, updateMyProfile, uploadProfileImage, addGalleryImage, removeGalleryImage };
+module.exports = {
+  getMyProfile,
+  getUserProfile,
+  updateMyProfile,
+  uploadProfileImage,
+  addGalleryImage,
+  removeGalleryImage,
+};

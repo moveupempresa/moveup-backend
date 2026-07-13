@@ -1,7 +1,9 @@
+const mongoose = require('mongoose');
 const Event = require('../models/Event');
 const Session = require('../models/Session');
 const Pack = require('../models/Pack');
 const User = require('../models/User');
+const Profile = require('../models/Profile');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
 
@@ -124,8 +126,14 @@ const deleteEvent = async (req, res) => {
 
 const attachSessionsAndPacks = async (events) => {
   const eventIds = events.map((e) => e._id);
-  const sessions = await Session.find({ eventId: { $in: eventIds } }).sort({ startDatetime: 1 });
-  const packs = await Pack.find({ eventId: { $in: eventIds } }).sort({ createdAt: 1 });
+  const ownerIds = [...new Set(events.map((e) => e.ownerUserId.toString()))];
+
+  const [sessions, packs, owners, ownerProfiles] = await Promise.all([
+    Session.find({ eventId: { $in: eventIds } }).sort({ startDatetime: 1 }),
+    Pack.find({ eventId: { $in: eventIds } }).sort({ createdAt: 1 }),
+    User.find({ _id: { $in: ownerIds } }),
+    Profile.find({ userId: { $in: ownerIds } }),
+  ]);
 
   const sessionsByEvent = {};
   for (const session of sessions) {
@@ -141,10 +149,18 @@ const attachSessionsAndPacks = async (events) => {
     packsByEvent[key].push(pack.toJSON());
   }
 
+  const usernameByOwner = {};
+  for (const owner of owners) usernameByOwner[owner.id] = owner.username;
+
+  const displayNameByOwner = {};
+  for (const profile of ownerProfiles) displayNameByOwner[profile.userId] = profile.displayName;
+
   return events.map((event) => {
     const eventJson = event.toJSON();
     eventJson.sessions = sessionsByEvent[event.id] || [];
     eventJson.packs = packsByEvent[event.id] || [];
+    eventJson.ownerUsername = usernameByOwner[event.ownerUserId.toString()] || '';
+    eventJson.ownerDisplayName = displayNameByOwner[event.ownerUserId.toString()] || '';
     return eventJson;
   });
 };
@@ -156,13 +172,16 @@ const getMyEvents = async (req, res) => {
 };
 
 const getPublicEvents = async (req, res) => {
-  const { title, city, style, username, dateFrom } = req.query;
+  const { title, city, style, username, userId, dateFrom } = req.query;
 
   const filter = { visibility: 'public', status: 'published' };
   if (title) filter.title = { $regex: escapeRegex(title), $options: 'i' };
   if (city) filter.city = { $regex: escapeRegex(city), $options: 'i' };
   if (style) filter.style = { $regex: `^${escapeRegex(style)}$`, $options: 'i' };
-  if (username) {
+  if (userId) {
+    if (!mongoose.Types.ObjectId.isValid(userId)) return res.json({ events: [] });
+    filter.ownerUserId = userId;
+  } else if (username) {
     const owner = await User.findOne({
       username: { $regex: `^${escapeRegex(username)}$`, $options: 'i' },
     });
