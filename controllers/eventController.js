@@ -156,9 +156,10 @@ const getMyEvents = async (req, res) => {
 };
 
 const getPublicEvents = async (req, res) => {
-  const { city, style, username, dateFrom } = req.query;
+  const { title, city, style, username, dateFrom } = req.query;
 
   const filter = { visibility: 'public', status: 'published' };
+  if (title) filter.title = { $regex: escapeRegex(title), $options: 'i' };
   if (city) filter.city = { $regex: escapeRegex(city), $options: 'i' };
   if (style) filter.style = { $regex: `^${escapeRegex(style)}$`, $options: 'i' };
   if (username) {
