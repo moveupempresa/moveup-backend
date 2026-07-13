@@ -119,9 +119,7 @@ const deleteEvent = async (req, res) => {
   return res.status(200).json({ message: 'Evento eliminado' });
 };
 
-const getMyEvents = async (req, res) => {
-  const events = await Event.find({ ownerUserId: req.userId }).sort({ createdAt: -1 });
-
+const attachSessionsAndPacks = async (events) => {
   const eventIds = events.map((e) => e._id);
   const sessions = await Session.find({ eventId: { $in: eventIds } }).sort({ startDatetime: 1 });
   const packs = await Pack.find({ eventId: { $in: eventIds } }).sort({ createdAt: 1 });
@@ -140,14 +138,24 @@ const getMyEvents = async (req, res) => {
     packsByEvent[key].push(pack.toJSON());
   }
 
-  const result = events.map((event) => {
+  return events.map((event) => {
     const eventJson = event.toJSON();
     eventJson.sessions = sessionsByEvent[event.id] || [];
     eventJson.packs = packsByEvent[event.id] || [];
     return eventJson;
   });
+};
 
+const getMyEvents = async (req, res) => {
+  const events = await Event.find({ ownerUserId: req.userId }).sort({ createdAt: -1 });
+  const result = await attachSessionsAndPacks(events);
   return res.json({ events: result });
 };
 
-module.exports = { createEvent, updateEvent, deleteEvent, getMyEvents };
+const getPublicEvents = async (req, res) => {
+  const events = await Event.find({ visibility: 'public', status: 'published' }).sort({ createdAt: -1 });
+  const result = await attachSessionsAndPacks(events);
+  return res.json({ events: result });
+};
+
+module.exports = { createEvent, updateEvent, deleteEvent, getMyEvents, getPublicEvents };
