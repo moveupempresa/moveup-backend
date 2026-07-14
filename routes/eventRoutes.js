@@ -25,10 +25,12 @@ const {
   cancelSessionSignUp,
   joinSessionWaitlist,
   leaveSessionWaitlist,
+  getSessionRegistrants,
   signUpForPack,
   cancelPackSignUp,
   joinPackWaitlist,
   leavePackWaitlist,
+  getPackRegistrants,
   approvePackRequest,
   rejectPackRequest,
 } = require('../controllers/registrationController');
@@ -53,6 +55,7 @@ router.post('/:eventId/sessions/:sessionId/signup', signUpForSession);
 router.delete('/:eventId/sessions/:sessionId/signup', cancelSessionSignUp);
 router.post('/:eventId/sessions/:sessionId/waitlist', joinSessionWaitlist);
 router.delete('/:eventId/sessions/:sessionId/waitlist', leaveSessionWaitlist);
+router.get('/:eventId/sessions/:sessionId/registrations', getSessionRegistrants);
 router.get('/:eventId/packs', getEventPacks);
 router.post('/:eventId/packs', createPack);
 router.put('/:eventId/packs/:packId', updatePack);
@@ -61,6 +64,7 @@ router.post('/:eventId/packs/:packId/signup', signUpForPack);
 router.delete('/:eventId/packs/:packId/signup', cancelPackSignUp);
 router.post('/:eventId/packs/:packId/waitlist', joinPackWaitlist);
 router.delete('/:eventId/packs/:packId/waitlist', leavePackWaitlist);
+router.get('/:eventId/packs/:packId/registrations', getPackRegistrants);
 router.post('/:eventId/packs/:packId/requests/:userId/approve', approvePackRequest);
 router.post('/:eventId/packs/:packId/requests/:userId/reject', rejectPackRequest);
 router.post('/:eventId/save', saveEvent);

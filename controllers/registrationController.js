@@ -4,6 +4,7 @@ const Pack = require('../models/Pack');
 const Registration = require('../models/Registration');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
+const Profile = require('../models/Profile');
 
 const TARGET_CONFIG = {
   session: {
@@ -258,7 +259,50 @@ const createHandlers = (targetType) => {
     return res.status(200).json({ status: null, confirmedCount });
   };
 
-  return { signUp, cancelSignUp, joinWaitlist, leaveWaitlist };
+  const getRegistrants = async (req, res) => {
+    const loaded = await loadTarget(req, res);
+    if (!loaded) return;
+    const { event, target } = loaded;
+
+    if (event.ownerUserId.toString() !== req.userId) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const registrations = await Registration.find({ targetType, targetId: target._id }).sort({
+      createdAt: 1,
+    });
+    const userIds = registrations.map((r) => r.userId);
+    const [users, profiles] = await Promise.all([
+      User.find({ _id: { $in: userIds } }),
+      Profile.find({ userId: { $in: userIds } }),
+    ]);
+    const usernameById = {};
+    users.forEach((u) => {
+      usernameById[u._id.toString()] = u.username;
+    });
+    const profileByUser = {};
+    profiles.forEach((p) => {
+      profileByUser[p.userId.toString()] = p;
+    });
+
+    const registrants = registrations.map((r) => {
+      const uid = r.userId.toString();
+      const profile = profileByUser[uid];
+      return {
+        userId: uid,
+        username: usernameById[uid] || '',
+        displayName: profile?.displayName || '',
+        profileImage: profile?.profileImage || null,
+        status: r.status,
+        selectedSessionIds: (r.selectedSessionIds || []).map((id) => id.toString()),
+        createdAt: r.createdAt,
+      };
+    });
+
+    return res.status(200).json({ registrants });
+  };
+
+  return { signUp, cancelSignUp, joinWaitlist, leaveWaitlist, getRegistrants };
 };
 
 const sessionHandlers = createHandlers('session');
@@ -363,10 +407,12 @@ module.exports = {
   cancelSessionSignUp: sessionHandlers.cancelSignUp,
   joinSessionWaitlist: sessionHandlers.joinWaitlist,
   leaveSessionWaitlist: sessionHandlers.leaveWaitlist,
+  getSessionRegistrants: sessionHandlers.getRegistrants,
   signUpForPack: packHandlers.signUp,
   cancelPackSignUp: packHandlers.cancelSignUp,
   joinPackWaitlist: packHandlers.joinWaitlist,
   leavePackWaitlist: packHandlers.leaveWaitlist,
+  getPackRegistrants: packHandlers.getRegistrants,
   approvePackRequest,
   rejectPackRequest,
   notifyRegistrantsOfUpdate,
