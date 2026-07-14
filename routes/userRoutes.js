@@ -7,6 +7,7 @@ const {
   confirmEmailChange,
   deleteAccount,
 } = require('../controllers/userController');
+const { followUser, unfollowUser } = require('../controllers/followController');
 const userRateLimit = require('../middleware/userRateLimit');
 const passwordResetRateLimit = require('../middleware/passwordResetRateLimit');
 
@@ -38,5 +39,7 @@ router.patch('/me/username', userRateLimit, changeUsername);
 router.post('/me/request-email-change', passwordResetRateLimit, requestEmailChange);
 router.post('/me/confirm-email-change', passwordResetRateLimit, confirmEmailChange);
 router.delete('/me', userRateLimit, deleteAccount);
+router.post('/:userId/follow', userRateLimit, followUser);
+router.delete('/:userId/follow', userRateLimit, unfollowUser);
 
 module.exports = router;

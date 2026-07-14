@@ -5,6 +5,8 @@ const {
   deleteEvent,
   getMyEvents,
   getPublicEvents,
+  saveEvent,
+  unsaveEvent,
 } = require('../controllers/eventController');
 const {
   createSession,
@@ -39,5 +41,7 @@ router.get('/:eventId/packs', getEventPacks);
 router.post('/:eventId/packs', createPack);
 router.put('/:eventId/packs/:packId', updatePack);
 router.delete('/:eventId/packs/:packId', deletePack);
+router.post('/:eventId/save', saveEvent);
+router.delete('/:eventId/save', unsaveEvent);
 
 module.exports = router;

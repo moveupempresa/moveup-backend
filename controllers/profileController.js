@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Profile = require('../models/Profile');
 const User = require('../models/User');
+const Follow = require('../models/Follow');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 
 const getMyProfile = async (req, res) => {
@@ -17,15 +18,22 @@ const getUserProfile = async (req, res) => {
     return res.status(404).json({ message: 'Perfil no encontrado' });
   }
 
-  const [profile, user] = await Promise.all([
+  const [profile, user, followersCount, isFollowing] = await Promise.all([
     Profile.findOne({ userId }),
     User.findById(userId),
+    Follow.countDocuments({ followingId: userId }),
+    Follow.exists({ followerId: req.userId, followingId: userId }),
   ]);
   if (!profile || !user) {
     return res.status(404).json({ message: 'Perfil no encontrado' });
   }
 
-  return res.status(200).json({ profile: profile.toJSON(), username: user.username });
+  return res.status(200).json({
+    profile: profile.toJSON(),
+    username: user.username,
+    followersCount,
+    isFollowing: Boolean(isFollowing),
+  });
 };
 
 const updateMyProfile = async (req, res) => {

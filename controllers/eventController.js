@@ -4,6 +4,7 @@ const Session = require('../models/Session');
 const Pack = require('../models/Pack');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const SavedEvent = require('../models/SavedEvent');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
 
@@ -124,15 +125,18 @@ const deleteEvent = async (req, res) => {
   return res.status(200).json({ message: 'Evento eliminado' });
 };
 
-const attachSessionsAndPacks = async (events) => {
+const attachSessionsAndPacks = async (events, viewerId) => {
   const eventIds = events.map((e) => e._id);
   const ownerIds = [...new Set(events.map((e) => e.ownerUserId.toString()))];
 
-  const [sessions, packs, owners, ownerProfiles] = await Promise.all([
+  const [sessions, packs, owners, ownerProfiles, savedEvents] = await Promise.all([
     Session.find({ eventId: { $in: eventIds } }).sort({ startDatetime: 1 }),
     Pack.find({ eventId: { $in: eventIds } }).sort({ createdAt: 1 }),
     User.find({ _id: { $in: ownerIds } }),
     Profile.find({ userId: { $in: ownerIds } }),
+    viewerId
+      ? SavedEvent.find({ userId: viewerId, eventId: { $in: eventIds } })
+      : Promise.resolve([]),
   ]);
 
   const sessionsByEvent = {};
@@ -155,24 +159,27 @@ const attachSessionsAndPacks = async (events) => {
   const displayNameByOwner = {};
   for (const profile of ownerProfiles) displayNameByOwner[profile.userId] = profile.displayName;
 
+  const savedEventIds = new Set(savedEvents.map((s) => s.eventId.toString()));
+
   return events.map((event) => {
     const eventJson = event.toJSON();
     eventJson.sessions = sessionsByEvent[event.id] || [];
     eventJson.packs = packsByEvent[event.id] || [];
     eventJson.ownerUsername = usernameByOwner[event.ownerUserId.toString()] || '';
     eventJson.ownerDisplayName = displayNameByOwner[event.ownerUserId.toString()] || '';
+    eventJson.isSaved = savedEventIds.has(event.id);
     return eventJson;
   });
 };
 
 const getMyEvents = async (req, res) => {
   const events = await Event.find({ ownerUserId: req.userId }).sort({ createdAt: -1 });
-  const result = await attachSessionsAndPacks(events);
+  const result = await attachSessionsAndPacks(events, req.userId);
   return res.json({ events: result });
 };
 
 const getPublicEvents = async (req, res) => {
-  const { title, city, style, username, userId, dateFrom } = req.query;
+  const { title, city, style, username, userId, dateFrom, maxPrice } = req.query;
 
   const filter = { visibility: 'public', status: 'published' };
   if (title) filter.title = { $regex: escapeRegex(title), $options: 'i' };
@@ -198,7 +205,7 @@ const getPublicEvents = async (req, res) => {
   }
 
   const events = await Event.find(filter).sort({ createdAt: -1 });
-  let result = await attachSessionsAndPacks(events);
+  let result = await attachSessionsAndPacks(events, req.userId);
 
   if (dateFrom) {
     const fromDate = new Date(dateFrom);
@@ -209,7 +216,45 @@ const getPublicEvents = async (req, res) => {
     }
   }
 
+  if (maxPrice !== undefined) {
+    const priceLimit = Number(maxPrice);
+    if (!Number.isNaN(priceLimit)) {
+      result = result.filter((e) => e.packs.some((p) => p.price <= priceLimit));
+    }
+  }
+
   return res.json({ events: result });
 };
 
-module.exports = { createEvent, updateEvent, deleteEvent, getMyEvents, getPublicEvents };
+const saveEvent = async (req, res) => {
+  const { eventId } = req.params;
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+
+  await SavedEvent.updateOne(
+    { userId: req.userId, eventId },
+    { $setOnInsert: { userId: req.userId, eventId } },
+    { upsert: true }
+  );
+
+  return res.status(200).json({ isSaved: true });
+};
+
+const unsaveEvent = async (req, res) => {
+  const { eventId } = req.params;
+
+  await SavedEvent.deleteOne({ userId: req.userId, eventId });
+
+  return res.status(200).json({ isSaved: false });
+};
+
+module.exports = {
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  getMyEvents,
+  getPublicEvents,
+  saveEvent,
+  unsaveEvent,
+};
