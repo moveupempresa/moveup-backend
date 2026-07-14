@@ -190,6 +190,7 @@ const attachSessionsAndPacks = async (events, viewerId) => {
     json.confirmedCount = confirmedCountByTarget[json.id] || 0;
     json.isSignedUp = viewerStatusByTarget[json.id] === 'confirmed';
     json.isWaitlisted = viewerStatusByTarget[json.id] === 'waitlisted';
+    json.isPending = viewerStatusByTarget[json.id] === 'pending';
     return json;
   };
 

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const TARGET_TYPES = ['session', 'pack'];
-const STATUSES = ['confirmed', 'waitlisted'];
+const STATUSES = ['confirmed', 'waitlisted', 'pending'];
 
 const registrationSchema = new mongoose.Schema(
   {

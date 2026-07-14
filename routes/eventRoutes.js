@@ -29,6 +29,8 @@ const {
   cancelPackSignUp,
   joinPackWaitlist,
   leavePackWaitlist,
+  approvePackRequest,
+  rejectPackRequest,
 } = require('../controllers/registrationController');
 const requireAuth = require('../middleware/requireAuth');
 const handleCoverUpload = require('../middleware/uploadCover');
@@ -59,6 +61,8 @@ router.post('/:eventId/packs/:packId/signup', signUpForPack);
 router.delete('/:eventId/packs/:packId/signup', cancelPackSignUp);
 router.post('/:eventId/packs/:packId/waitlist', joinPackWaitlist);
 router.delete('/:eventId/packs/:packId/waitlist', leavePackWaitlist);
+router.post('/:eventId/packs/:packId/requests/:userId/approve', approvePackRequest);
+router.post('/:eventId/packs/:packId/requests/:userId/reject', rejectPackRequest);
 router.post('/:eventId/save', saveEvent);
 router.delete('/:eventId/save', unsaveEvent);
 

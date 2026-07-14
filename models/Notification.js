@@ -7,7 +7,13 @@ const NOTIFICATION_TYPES = [
   'waitlisted',
   'spot_available',
   'target_updated',
+  'new_registration',
+  'signup_request',
+  'signup_approved',
+  'signup_rejected',
 ];
+
+const TARGET_TYPES = ['session', 'pack'];
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -28,6 +34,11 @@ const notificationSchema = new mongoose.Schema(
       ref: 'Event',
       default: null,
     },
+    relatedTargetType: { type: String, enum: TARGET_TYPES, default: null },
+    relatedTargetId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
     read: { type: Boolean, default: false },
   },
   {
@@ -40,6 +51,7 @@ const notificationSchema = new mongoose.Schema(
         ret.userId = ret.userId.toString();
         if (ret.relatedUserId) ret.relatedUserId = ret.relatedUserId.toString();
         if (ret.relatedEventId) ret.relatedEventId = ret.relatedEventId.toString();
+        if (ret.relatedTargetId) ret.relatedTargetId = ret.relatedTargetId.toString();
         delete ret._id;
         return ret;
       },

@@ -3,6 +3,7 @@ const Session = require('../models/Session');
 const Pack = require('../models/Pack');
 const Registration = require('../models/Registration');
 const Notification = require('../models/Notification');
+const User = require('../models/User');
 
 const TARGET_CONFIG = {
   session: {
@@ -43,8 +44,9 @@ const createHandlers = (targetType) => {
   const signUp = async (req, res) => {
     const loaded = await loadTarget(req, res);
     if (!loaded) return;
-    const { target } = loaded;
+    const { event, target } = loaded;
     const targetId = target._id;
+    const requiresApproval = targetType === 'pack' && target.approvalMode === 'manual';
 
     if (!target.isUnlimitedCapacity) {
       const confirmedCount = await countConfirmed(targetType, targetId);
@@ -56,6 +58,41 @@ const createHandlers = (targetType) => {
     }
 
     const existing = await Registration.findOne({ userId: req.userId, targetType, targetId });
+
+    if (requiresApproval) {
+      if (existing && (existing.status === 'confirmed' || existing.status === 'pending')) {
+        const confirmedCount = await countConfirmed(targetType, targetId);
+        return res.status(200).json({ status: existing.status, confirmedCount });
+      }
+
+      if (existing) {
+        existing.status = 'pending';
+        await existing.save();
+      } else {
+        await Registration.create({
+          userId: req.userId,
+          eventId: target.eventId,
+          targetType,
+          targetId,
+          status: 'pending',
+        });
+      }
+
+      const requester = await User.findById(req.userId);
+      await Notification.create({
+        userId: event.ownerUserId,
+        type: 'signup_request',
+        message: `${requester.username} quiere unirse a ${label(target)}`,
+        relatedUserId: req.userId,
+        relatedEventId: target.eventId,
+        relatedTargetType: targetType,
+        relatedTargetId: targetId,
+      });
+
+      const confirmedCount = await countConfirmed(targetType, targetId);
+      return res.status(200).json({ status: 'pending', confirmedCount });
+    }
+
     if (!existing || existing.status !== 'confirmed') {
       if (existing) {
         existing.status = 'confirmed';
@@ -75,6 +112,18 @@ const createHandlers = (targetType) => {
         message: `Te has inscrito a ${label(target)}`,
         relatedEventId: target.eventId,
       });
+      if (event.ownerUserId.toString() !== req.userId) {
+        const requester = await User.findById(req.userId);
+        await Notification.create({
+          userId: event.ownerUserId,
+          type: 'new_registration',
+          message: `${requester.username} se ha inscrito a ${label(target)}`,
+          relatedUserId: req.userId,
+          relatedEventId: target.eventId,
+          relatedTargetType: targetType,
+          relatedTargetId: targetId,
+        });
+      }
     }
 
     const confirmedCount = await countConfirmed(targetType, targetId);
@@ -93,6 +142,10 @@ const createHandlers = (targetType) => {
       targetId,
       status: 'confirmed',
     });
+
+    if (!deleted) {
+      await Registration.deleteOne({ userId: req.userId, targetType, targetId, status: 'pending' });
+    }
 
     if (deleted && !target.isUnlimitedCapacity) {
       const confirmedCount = await countConfirmed(targetType, targetId);
@@ -178,11 +231,82 @@ const createHandlers = (targetType) => {
 const sessionHandlers = createHandlers('session');
 const packHandlers = createHandlers('pack');
 
+const approvePackRequest = async (req, res) => {
+  const { eventId, packId, userId } = req.params;
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+  if (event.ownerUserId.toString() !== req.userId) {
+    return res.status(403).json({ message: 'No autorizado' });
+  }
+
+  const pack = await Pack.findOne({ _id: packId, eventId });
+  if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
+
+  const registration = await Registration.findOne({ userId, targetType: 'pack', targetId: packId, status: 'pending' });
+  if (!registration) return res.status(404).json({ message: 'Solicitud no encontrada' });
+
+  if (!pack.isUnlimitedCapacity) {
+    const confirmedCount = await countConfirmed('pack', packId);
+    if (confirmedCount >= pack.capacity) {
+      return res.status(400).json({ message: 'Está completo, no se pueden aprobar más solicitudes' });
+    }
+  }
+
+  registration.status = 'confirmed';
+  await registration.save();
+
+  await Notification.create({
+    userId,
+    type: 'signup_approved',
+    message: `Tu inscripción a ${TARGET_CONFIG.pack.label(pack)} ha sido aprobada`,
+    relatedEventId: eventId,
+    relatedTargetType: 'pack',
+    relatedTargetId: packId,
+  });
+
+  const confirmedCount = await countConfirmed('pack', packId);
+  return res.status(200).json({ status: 'confirmed', confirmedCount });
+};
+
+const rejectPackRequest = async (req, res) => {
+  const { eventId, packId, userId } = req.params;
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+  if (event.ownerUserId.toString() !== req.userId) {
+    return res.status(403).json({ message: 'No autorizado' });
+  }
+
+  const pack = await Pack.findOne({ _id: packId, eventId });
+  if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
+
+  const registration = await Registration.findOneAndDelete({
+    userId,
+    targetType: 'pack',
+    targetId: packId,
+    status: 'pending',
+  });
+  if (!registration) return res.status(404).json({ message: 'Solicitud no encontrada' });
+
+  await Notification.create({
+    userId,
+    type: 'signup_rejected',
+    message: `Tu inscripción a ${TARGET_CONFIG.pack.label(pack)} ha sido rechazada`,
+    relatedEventId: eventId,
+    relatedTargetType: 'pack',
+    relatedTargetId: packId,
+  });
+
+  const confirmedCount = await countConfirmed('pack', packId);
+  return res.status(200).json({ status: null, confirmedCount });
+};
+
 const notifyRegistrantsOfUpdate = async (targetType, targetId, eventId, targetName) => {
   const registrations = await Registration.find({
     targetType,
     targetId,
-    status: { $in: ['confirmed', 'waitlisted'] },
+    status: { $in: ['confirmed', 'waitlisted', 'pending'] },
   });
   if (registrations.length === 0) return;
 
@@ -210,5 +334,7 @@ module.exports = {
   cancelPackSignUp: packHandlers.cancelSignUp,
   joinPackWaitlist: packHandlers.joinWaitlist,
   leavePackWaitlist: packHandlers.leaveWaitlist,
+  approvePackRequest,
+  rejectPackRequest,
   notifyRegistrantsOfUpdate,
 };
