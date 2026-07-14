@@ -1,6 +1,8 @@
 const Event = require('../models/Event');
 const Pack = require('../models/Pack');
 const Session = require('../models/Session');
+const Registration = require('../models/Registration');
+const { notifyRegistrantsOfUpdate } = require('./registrationController');
 
 const createPack = async (req, res) => {
   const { eventId } = req.params;
@@ -134,6 +136,8 @@ const updatePack = async (req, res) => {
     throw err;
   }
 
+  await notifyRegistrantsOfUpdate('pack', pack._id, eventId, pack.name);
+
   return res.status(200).json({ pack: pack.toJSON() });
 };
 
@@ -148,6 +152,8 @@ const deletePack = async (req, res) => {
 
   const pack = await Pack.findOneAndDelete({ _id: packId, eventId });
   if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
+
+  await Registration.deleteMany({ targetType: 'pack', targetId: packId });
 
   return res.status(200).json({ message: 'Pack eliminado' });
 };

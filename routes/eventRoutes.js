@@ -20,6 +20,16 @@ const {
   updatePack,
   deletePack,
 } = require('../controllers/packController');
+const {
+  signUpForSession,
+  cancelSessionSignUp,
+  joinSessionWaitlist,
+  leaveSessionWaitlist,
+  signUpForPack,
+  cancelPackSignUp,
+  joinPackWaitlist,
+  leavePackWaitlist,
+} = require('../controllers/registrationController');
 const requireAuth = require('../middleware/requireAuth');
 const handleCoverUpload = require('../middleware/uploadCover');
 const userRateLimit = require('../middleware/userRateLimit');
@@ -37,10 +47,18 @@ router.get('/:eventId/sessions', getEventSessions);
 router.post('/:eventId/sessions', createSession);
 router.put('/:eventId/sessions/:sessionId', updateSession);
 router.delete('/:eventId/sessions/:sessionId', deleteSession);
+router.post('/:eventId/sessions/:sessionId/signup', signUpForSession);
+router.delete('/:eventId/sessions/:sessionId/signup', cancelSessionSignUp);
+router.post('/:eventId/sessions/:sessionId/waitlist', joinSessionWaitlist);
+router.delete('/:eventId/sessions/:sessionId/waitlist', leaveSessionWaitlist);
 router.get('/:eventId/packs', getEventPacks);
 router.post('/:eventId/packs', createPack);
 router.put('/:eventId/packs/:packId', updatePack);
 router.delete('/:eventId/packs/:packId', deletePack);
+router.post('/:eventId/packs/:packId/signup', signUpForPack);
+router.delete('/:eventId/packs/:packId/signup', cancelPackSignUp);
+router.post('/:eventId/packs/:packId/waitlist', joinPackWaitlist);
+router.delete('/:eventId/packs/:packId/waitlist', leavePackWaitlist);
 router.post('/:eventId/save', saveEvent);
 router.delete('/:eventId/save', unsaveEvent);
 

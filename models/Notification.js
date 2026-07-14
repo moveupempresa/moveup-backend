@@ -1,6 +1,13 @@
 const mongoose = require('mongoose');
 
-const NOTIFICATION_TYPES = ['followed_user', 'followed_user_new_event'];
+const NOTIFICATION_TYPES = [
+  'followed_user',
+  'followed_user_new_event',
+  'signed_up',
+  'waitlisted',
+  'spot_available',
+  'target_updated',
+];
 
 const notificationSchema = new mongoose.Schema(
   {

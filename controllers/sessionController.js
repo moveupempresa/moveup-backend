@@ -1,6 +1,8 @@
 const Event = require('../models/Event');
 const Session = require('../models/Session');
 const Pack = require('../models/Pack');
+const Registration = require('../models/Registration');
+const { notifyRegistrantsOfUpdate } = require('./registrationController');
 
 const createSession = async (req, res) => {
   const { eventId } = req.params;
@@ -72,6 +74,8 @@ const updateSession = async (req, res) => {
     throw err;
   }
 
+  await notifyRegistrantsOfUpdate('session', session._id, eventId, session.name);
+
   return res.status(200).json({ session: session.toJSON() });
 };
 
@@ -88,6 +92,7 @@ const deleteSession = async (req, res) => {
   if (!session) return res.status(404).json({ message: 'Sesión no encontrada' });
 
   await Pack.updateMany({ eventId }, { $pull: { sessionIds: sessionId } });
+  await Registration.deleteMany({ targetType: 'session', targetId: sessionId });
 
   return res.status(200).json({ message: 'Sesión eliminada' });
 };

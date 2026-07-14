@@ -7,6 +7,7 @@ const Profile = require('../models/Profile');
 const SavedEvent = require('../models/SavedEvent');
 const Follow = require('../models/Follow');
 const Notification = require('../models/Notification');
+const Registration = require('../models/Registration');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
 
@@ -146,6 +147,7 @@ const deleteEvent = async (req, res) => {
 
   await Session.deleteMany({ eventId });
   await Pack.deleteMany({ eventId });
+  await Registration.deleteMany({ eventId });
   await event.deleteOne();
   deleteUploadedFile(event.coverMediaUrl);
 
@@ -166,18 +168,43 @@ const attachSessionsAndPacks = async (events, viewerId) => {
       : Promise.resolve([]),
   ]);
 
+  const sessionIds = sessions.map((s) => s._id);
+  const packIds = packs.map((p) => p._id);
+  const registrations = await Registration.find({
+    targetId: { $in: [...sessionIds, ...packIds] },
+  });
+
+  const confirmedCountByTarget = {};
+  const viewerStatusByTarget = {};
+  for (const reg of registrations) {
+    const key = reg.targetId.toString();
+    if (reg.status === 'confirmed') {
+      confirmedCountByTarget[key] = (confirmedCountByTarget[key] || 0) + 1;
+    }
+    if (viewerId && reg.userId.toString() === viewerId) {
+      viewerStatusByTarget[key] = reg.status;
+    }
+  }
+
+  const attachRegistrationInfo = (json) => {
+    json.confirmedCount = confirmedCountByTarget[json.id] || 0;
+    json.isSignedUp = viewerStatusByTarget[json.id] === 'confirmed';
+    json.isWaitlisted = viewerStatusByTarget[json.id] === 'waitlisted';
+    return json;
+  };
+
   const sessionsByEvent = {};
   for (const session of sessions) {
     const key = session.eventId.toString();
     if (!sessionsByEvent[key]) sessionsByEvent[key] = [];
-    sessionsByEvent[key].push(session.toJSON());
+    sessionsByEvent[key].push(attachRegistrationInfo(session.toJSON()));
   }
 
   const packsByEvent = {};
   for (const pack of packs) {
     const key = pack.eventId.toString();
     if (!packsByEvent[key]) packsByEvent[key] = [];
-    packsByEvent[key].push(pack.toJSON());
+    packsByEvent[key].push(attachRegistrationInfo(pack.toJSON()));
   }
 
   const usernameByOwner = {};
