@@ -24,6 +24,25 @@ const countConfirmed = (targetType, targetId) =>
 const createHandlers = (targetType) => {
   const { Model, paramName, label } = TARGET_CONFIG[targetType];
 
+  const resolveSelectedSessions = (req, target) => {
+    if (targetType !== 'pack' || target.packType !== 'customizable') {
+      return { selectedSessionIds: undefined };
+    }
+    const raw = Array.isArray(req.body?.selectedSessionIds) ? req.body.selectedSessionIds : [];
+    const unique = [...new Set(raw.map(String))];
+    if (unique.length === 0) {
+      return { error: 'Selecciona al menos una sesión para tu pack' };
+    }
+    if (target.maxSelectableSessions && unique.length > target.maxSelectableSessions) {
+      return { error: `Puedes seleccionar hasta ${target.maxSelectableSessions} sesiones` };
+    }
+    const allowed = new Set(target.sessionIds.map((id) => id.toString()));
+    if (!unique.every((id) => allowed.has(id))) {
+      return { error: 'Sesión no válida para este pack' };
+    }
+    return { selectedSessionIds: unique };
+  };
+
   const loadTarget = async (req, res) => {
     const { eventId } = req.params;
     const targetId = req.params[paramName];
@@ -65,8 +84,14 @@ const createHandlers = (targetType) => {
         return res.status(200).json({ status: existing.status, confirmedCount });
       }
 
+      const { selectedSessionIds, error: selectionError } = resolveSelectedSessions(req, target);
+      if (selectionError) {
+        return res.status(400).json({ message: selectionError });
+      }
+
       if (existing) {
         existing.status = 'pending';
+        if (selectedSessionIds) existing.selectedSessionIds = selectedSessionIds;
         await existing.save();
       } else {
         await Registration.create({
@@ -75,6 +100,7 @@ const createHandlers = (targetType) => {
           targetType,
           targetId,
           status: 'pending',
+          ...(selectedSessionIds ? { selectedSessionIds } : {}),
         });
       }
 
@@ -94,8 +120,14 @@ const createHandlers = (targetType) => {
     }
 
     if (!existing || existing.status !== 'confirmed') {
+      const { selectedSessionIds, error: selectionError } = resolveSelectedSessions(req, target);
+      if (selectionError) {
+        return res.status(400).json({ message: selectionError });
+      }
+
       if (existing) {
         existing.status = 'confirmed';
+        if (selectedSessionIds) existing.selectedSessionIds = selectedSessionIds;
         await existing.save();
       } else {
         await Registration.create({
@@ -104,6 +136,7 @@ const createHandlers = (targetType) => {
           targetType,
           targetId,
           status: 'confirmed',
+          ...(selectedSessionIds ? { selectedSessionIds } : {}),
         });
       }
       await Notification.create({

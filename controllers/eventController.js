@@ -176,6 +176,7 @@ const attachSessionsAndPacks = async (events, viewerId) => {
 
   const confirmedCountByTarget = {};
   const viewerStatusByTarget = {};
+  const viewerSelectedSessionsByTarget = {};
   for (const reg of registrations) {
     const key = reg.targetId.toString();
     if (reg.status === 'confirmed') {
@@ -183,6 +184,7 @@ const attachSessionsAndPacks = async (events, viewerId) => {
     }
     if (viewerId && reg.userId.toString() === viewerId) {
       viewerStatusByTarget[key] = reg.status;
+      viewerSelectedSessionsByTarget[key] = (reg.selectedSessionIds || []).map((id) => id.toString());
     }
   }
 
@@ -191,6 +193,7 @@ const attachSessionsAndPacks = async (events, viewerId) => {
     json.isSignedUp = viewerStatusByTarget[json.id] === 'confirmed';
     json.isWaitlisted = viewerStatusByTarget[json.id] === 'waitlisted';
     json.isPending = viewerStatusByTarget[json.id] === 'pending';
+    json.mySelectedSessionIds = viewerSelectedSessionsByTarget[json.id] || [];
     return json;
   };
 
