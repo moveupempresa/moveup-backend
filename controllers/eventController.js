@@ -177,7 +177,15 @@ const getPublicEvents = async (req, res) => {
   const filter = { visibility: 'public', status: 'published' };
   if (title) filter.title = { $regex: escapeRegex(title), $options: 'i' };
   if (city) filter.city = { $regex: escapeRegex(city), $options: 'i' };
-  if (style) filter.style = { $regex: `^${escapeRegex(style)}$`, $options: 'i' };
+  if (style) {
+    const styleTokens = style
+      .split(/[,#\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (styleTokens.length > 0) {
+      filter.style = { $in: styleTokens.map((s) => new RegExp(`^${escapeRegex(s)}$`, 'i')) };
+    }
+  }
   if (userId) {
     if (!mongoose.Types.ObjectId.isValid(userId)) return res.json({ events: [] });
     filter.ownerUserId = userId;
