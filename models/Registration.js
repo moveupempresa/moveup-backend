@@ -22,6 +22,7 @@ const registrationSchema = new mongoose.Schema(
     },
     status: { type: String, enum: STATUSES, default: 'confirmed', required: true },
     selectedSessionIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Session' }],
+    hasPaid: { type: Boolean, default: false },
   },
   {
     timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },

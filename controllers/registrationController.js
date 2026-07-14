@@ -295,6 +295,7 @@ const createHandlers = (targetType) => {
         profileImage: profile?.profileImage || null,
         status: r.status,
         selectedSessionIds: (r.selectedSessionIds || []).map((id) => id.toString()),
+        hasPaid: r.hasPaid,
         createdAt: r.createdAt,
       };
     });
@@ -379,6 +380,24 @@ const rejectPackRequest = async (req, res) => {
   return res.status(200).json({ status: null, confirmedCount });
 };
 
+const setPackPaymentStatus = async (req, res) => {
+  const { eventId, packId, userId } = req.params;
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+  if (event.ownerUserId.toString() !== req.userId) {
+    return res.status(403).json({ message: 'No autorizado' });
+  }
+
+  const registration = await Registration.findOne({ userId, targetType: 'pack', targetId: packId });
+  if (!registration) return res.status(404).json({ message: 'Inscripción no encontrada' });
+
+  registration.hasPaid = Boolean(req.body?.hasPaid);
+  await registration.save();
+
+  return res.status(200).json({ hasPaid: registration.hasPaid });
+};
+
 const notifyRegistrantsOfUpdate = async (targetType, targetId, eventId, targetName) => {
   const registrations = await Registration.find({
     targetType,
@@ -415,5 +434,6 @@ module.exports = {
   getPackRegistrants: packHandlers.getRegistrants,
   approvePackRequest,
   rejectPackRequest,
+  setPackPaymentStatus,
   notifyRegistrantsOfUpdate,
 };
