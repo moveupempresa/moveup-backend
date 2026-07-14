@@ -5,10 +5,32 @@ const Pack = require('../models/Pack');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const SavedEvent = require('../models/SavedEvent');
+const Follow = require('../models/Follow');
+const Notification = require('../models/Notification');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const notifyFollowersOfNewEvent = async (event) => {
+  if (event.visibility !== 'public') return;
+
+  const [followers, owner] = await Promise.all([
+    Follow.find({ followingId: event.ownerUserId }),
+    User.findById(event.ownerUserId),
+  ]);
+  if (!owner || followers.length === 0) return;
+
+  await Notification.insertMany(
+    followers.map((follow) => ({
+      userId: follow.followerId,
+      type: 'followed_user_new_event',
+      message: `${owner.username} ha publicado un nuevo evento: ${event.title}`,
+      relatedUserId: event.ownerUserId,
+      relatedEventId: event._id,
+    }))
+  );
+};
 
 const createEvent = async (req, res) => {
   if (!req.file) {
@@ -44,6 +66,8 @@ const createEvent = async (req, res) => {
     }
     throw err;
   }
+
+  if (event.status === 'published') await notifyFollowersOfNewEvent(event);
 
   return res.status(201).json({ event: event.toJSON() });
 };
@@ -81,8 +105,9 @@ const updateEvent = async (req, res) => {
     event.reservationEnabled = reservationEnabled === 'true' || reservationEnabled === true;
   }
   if (req.body.style !== undefined) event.style = JSON.parse(req.body.style || '[]');
+  const isNewlyPublished = status === 'published' && event.status !== 'published';
   if (status !== undefined) {
-    if (status === 'published' && event.status !== 'published') event.publishedAt = new Date();
+    if (isNewlyPublished) event.publishedAt = new Date();
     event.status = status;
   }
 
@@ -104,6 +129,8 @@ const updateEvent = async (req, res) => {
   }
 
   if (req.file && previousCoverMediaUrl) deleteUploadedFile(previousCoverMediaUrl);
+
+  if (isNewlyPublished) await notifyFollowersOfNewEvent(event);
 
   return res.status(200).json({ event: event.toJSON() });
 };
