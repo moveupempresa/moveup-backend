@@ -398,6 +398,25 @@ const setPackPaymentStatus = async (req, res) => {
   return res.status(200).json({ hasPaid: registration.hasPaid });
 };
 
+const payForPack = async (req, res) => {
+  const { eventId, packId } = req.params;
+
+  const pack = await Pack.findOne({ _id: packId, eventId });
+  if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
+
+  const registration = await Registration.findOne({
+    userId: req.userId,
+    targetType: 'pack',
+    targetId: packId,
+  });
+  if (!registration) return res.status(404).json({ message: 'No estás inscrito en este pack' });
+
+  registration.hasPaid = true;
+  await registration.save();
+
+  return res.status(200).json({ hasPaid: true });
+};
+
 const notifyRegistrantsOfUpdate = async (targetType, targetId, eventId, targetName) => {
   const registrations = await Registration.find({
     targetType,
@@ -435,5 +454,6 @@ module.exports = {
   approvePackRequest,
   rejectPackRequest,
   setPackPaymentStatus,
+  payForPack,
   notifyRegistrantsOfUpdate,
 };

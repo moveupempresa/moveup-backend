@@ -34,6 +34,7 @@ const {
   approvePackRequest,
   rejectPackRequest,
   setPackPaymentStatus,
+  payForPack,
 } = require('../controllers/registrationController');
 const requireAuth = require('../middleware/requireAuth');
 const handleCoverUpload = require('../middleware/uploadCover');
@@ -69,6 +70,7 @@ router.get('/:eventId/packs/:packId/registrations', getPackRegistrants);
 router.post('/:eventId/packs/:packId/requests/:userId/approve', approvePackRequest);
 router.post('/:eventId/packs/:packId/requests/:userId/reject', rejectPackRequest);
 router.post('/:eventId/packs/:packId/registrations/:userId/payment', setPackPaymentStatus);
+router.post('/:eventId/packs/:packId/payment', payForPack);
 router.post('/:eventId/save', saveEvent);
 router.delete('/:eventId/save', unsaveEvent);
 
