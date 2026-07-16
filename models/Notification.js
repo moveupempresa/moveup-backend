@@ -11,6 +11,8 @@ const NOTIFICATION_TYPES = [
   'signup_request',
   'signup_approved',
   'signup_rejected',
+  'pack_paid',
+  'registration_revoked',
 ];
 
 const TARGET_TYPES = ['session', 'pack'];

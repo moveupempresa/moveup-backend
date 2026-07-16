@@ -26,11 +26,13 @@ const {
   joinSessionWaitlist,
   leaveSessionWaitlist,
   getSessionRegistrants,
+  revokeSessionRegistration,
   signUpForPack,
   cancelPackSignUp,
   joinPackWaitlist,
   leavePackWaitlist,
   getPackRegistrants,
+  revokePackRegistration,
   approvePackRequest,
   rejectPackRequest,
   setPackPaymentStatus,
@@ -58,6 +60,7 @@ router.delete('/:eventId/sessions/:sessionId/signup', cancelSessionSignUp);
 router.post('/:eventId/sessions/:sessionId/waitlist', joinSessionWaitlist);
 router.delete('/:eventId/sessions/:sessionId/waitlist', leaveSessionWaitlist);
 router.get('/:eventId/sessions/:sessionId/registrations', getSessionRegistrants);
+router.delete('/:eventId/sessions/:sessionId/registrations/:userId', revokeSessionRegistration);
 router.get('/:eventId/packs', getEventPacks);
 router.post('/:eventId/packs', createPack);
 router.put('/:eventId/packs/:packId', updatePack);
@@ -67,6 +70,7 @@ router.delete('/:eventId/packs/:packId/signup', cancelPackSignUp);
 router.post('/:eventId/packs/:packId/waitlist', joinPackWaitlist);
 router.delete('/:eventId/packs/:packId/waitlist', leavePackWaitlist);
 router.get('/:eventId/packs/:packId/registrations', getPackRegistrants);
+router.delete('/:eventId/packs/:packId/registrations/:userId', revokePackRegistration);
 router.post('/:eventId/packs/:packId/requests/:userId/approve', approvePackRequest);
 router.post('/:eventId/packs/:packId/requests/:userId/reject', rejectPackRequest);
 router.post('/:eventId/packs/:packId/registrations/:userId/payment', setPackPaymentStatus);

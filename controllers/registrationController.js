@@ -164,6 +164,31 @@ const createHandlers = (targetType) => {
     return res.status(200).json({ status: 'confirmed', confirmedCount });
   };
 
+  const freeUpSpot = async (target) => {
+    if (target.isUnlimitedCapacity) return;
+    const confirmedCount = await countConfirmed(targetType, target._id);
+    if (confirmedCount >= target.capacity) return;
+
+    const waitlisted = await Registration.find({
+      targetType,
+      targetId: target._id,
+      status: 'waitlisted',
+    });
+    if (waitlisted.length === 0) return;
+
+    await Notification.insertMany(
+      waitlisted.map((w) => ({
+        userId: w.userId,
+        type: 'spot_available',
+        message: `¡Hay un cupo disponible en ${label(target)}!`,
+        relatedEventId: target.eventId,
+      }))
+    );
+    await Registration.deleteMany({
+      _id: { $in: waitlisted.map((w) => w._id) },
+    });
+  };
+
   const cancelSignUp = async (req, res) => {
     const loaded = await loadTarget(req, res);
     if (!loaded) return;
@@ -181,25 +206,7 @@ const createHandlers = (targetType) => {
       await Registration.deleteOne({ userId: req.userId, targetType, targetId, status: 'pending' });
     }
 
-    if (deleted && !target.isUnlimitedCapacity) {
-      const confirmedCount = await countConfirmed(targetType, targetId);
-      if (confirmedCount < target.capacity) {
-        const waitlisted = await Registration.find({ targetType, targetId, status: 'waitlisted' });
-        if (waitlisted.length > 0) {
-          await Notification.insertMany(
-            waitlisted.map((w) => ({
-              userId: w.userId,
-              type: 'spot_available',
-              message: `¡Hay un cupo disponible en ${label(target)}!`,
-              relatedEventId: target.eventId,
-            }))
-          );
-          await Registration.deleteMany({
-            _id: { $in: waitlisted.map((w) => w._id) },
-          });
-        }
-      }
-    }
+    if (deleted) await freeUpSpot(target);
 
     const confirmedCount = await countConfirmed(targetType, targetId);
     return res.status(200).json({ status: null, confirmedCount });
@@ -303,7 +310,40 @@ const createHandlers = (targetType) => {
     return res.status(200).json({ registrants });
   };
 
-  return { signUp, cancelSignUp, joinWaitlist, leaveWaitlist, getRegistrants };
+  const revokeRegistration = async (req, res) => {
+    const loaded = await loadTarget(req, res);
+    if (!loaded) return;
+    const { event, target } = loaded;
+
+    if (event.ownerUserId.toString() !== req.userId) {
+      return res.status(403).json({ message: 'No autorizado' });
+    }
+
+    const { userId } = req.params;
+    const deleted = await Registration.findOneAndDelete({
+      userId,
+      targetType,
+      targetId: target._id,
+      status: 'confirmed',
+    });
+    if (!deleted) return res.status(404).json({ message: 'Inscripción no encontrada' });
+
+    await freeUpSpot(target);
+
+    await Notification.create({
+      userId,
+      type: 'registration_revoked',
+      message: `Tu inscripción a ${label(target)} ha sido cancelada por el organizador`,
+      relatedEventId: target.eventId,
+      relatedTargetType: targetType,
+      relatedTargetId: target._id,
+    });
+
+    const confirmedCount = await countConfirmed(targetType, target._id);
+    return res.status(200).json({ status: null, confirmedCount });
+  };
+
+  return { signUp, cancelSignUp, joinWaitlist, leaveWaitlist, getRegistrants, revokeRegistration };
 };
 
 const sessionHandlers = createHandlers('session');
@@ -409,6 +449,9 @@ const setPackPaymentStatus = async (req, res) => {
 const payForPack = async (req, res) => {
   const { eventId, packId } = req.params;
 
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+
   const pack = await Pack.findOne({ _id: packId, eventId });
   if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
 
@@ -421,6 +464,17 @@ const payForPack = async (req, res) => {
 
   registration.hasPaid = true;
   await registration.save();
+
+  const payer = await User.findById(req.userId);
+  await Notification.create({
+    userId: event.ownerUserId,
+    type: 'pack_paid',
+    message: `${payer.username} ha pagado ${TARGET_CONFIG.pack.label(pack)}`,
+    relatedUserId: req.userId,
+    relatedEventId: eventId,
+    relatedTargetType: 'pack',
+    relatedTargetId: packId,
+  });
 
   return res.status(200).json({ hasPaid: true });
 };
@@ -454,11 +508,13 @@ module.exports = {
   joinSessionWaitlist: sessionHandlers.joinWaitlist,
   leaveSessionWaitlist: sessionHandlers.leaveWaitlist,
   getSessionRegistrants: sessionHandlers.getRegistrants,
+  revokeSessionRegistration: sessionHandlers.revokeRegistration,
   signUpForPack: packHandlers.signUp,
   cancelPackSignUp: packHandlers.cancelSignUp,
   joinPackWaitlist: packHandlers.joinWaitlist,
   leavePackWaitlist: packHandlers.leaveWaitlist,
   getPackRegistrants: packHandlers.getRegistrants,
+  revokePackRegistration: packHandlers.revokeRegistration,
   approvePackRequest,
   rejectPackRequest,
   setPackPaymentStatus,
