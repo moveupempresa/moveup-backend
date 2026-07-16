@@ -389,6 +389,14 @@ const setPackPaymentStatus = async (req, res) => {
     return res.status(403).json({ message: 'No autorizado' });
   }
 
+  const pack = await Pack.findOne({ _id: packId, eventId });
+  if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
+  if (pack.paymentType !== 'offline') {
+    return res.status(400).json({
+      message: 'El estado de pago de este pack solo se puede marcar manualmente si el pago es en efectivo',
+    });
+  }
+
   const registration = await Registration.findOne({ userId, targetType: 'pack', targetId: packId });
   if (!registration) return res.status(404).json({ message: 'Inscripción no encontrada' });
 
