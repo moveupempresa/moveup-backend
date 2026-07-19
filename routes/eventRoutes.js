@@ -8,6 +8,7 @@ const {
   saveEvent,
   unsaveEvent,
 } = require('../controllers/eventController');
+const { getExploreSections } = require('../controllers/exploreController');
 const {
   createSession,
   getEventSessions,
@@ -49,6 +50,7 @@ router.use(requireAuth, userRateLimit);
 router.post('/', handleCoverUpload, createEvent);
 router.get('/', getPublicEvents);
 router.get('/my', getMyEvents);
+router.get('/explore-sections', getExploreSections);
 router.put('/:eventId', handleCoverUpload, updateEvent);
 router.delete('/:eventId', deleteEvent);
 router.get('/:eventId/sessions', getEventSessions);

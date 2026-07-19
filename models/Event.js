@@ -30,6 +30,13 @@ const eventSchema = new mongoose.Schema(
     customEventType: { type: String, default: null, trim: true },
     city: { type: String, required: true, trim: true },
     country: { type: String, required: true, trim: true },
+    location: {
+      type: new mongoose.Schema(
+        { lat: Number, lng: Number },
+        { _id: false }
+      ),
+      default: null,
+    },
     locationType: { type: String, enum: LOCATION_TYPES, default: 'presential' },
     visibility: { type: String, enum: VISIBILITIES, default: 'public' },
     reservationEnabled: { type: Boolean, default: false },

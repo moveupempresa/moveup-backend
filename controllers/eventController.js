@@ -10,6 +10,7 @@ const Notification = require('../models/Notification');
 const Registration = require('../models/Registration');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
+const { geocodeLocation } = require('../utils/geocode');
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -50,6 +51,8 @@ const createEvent = async (req, res) => {
   const coverMediaUrl = `/uploads/${req.file.filename}`;
   const coverMediaType = ALLOWED_IMAGE_TYPES.includes(req.file.mimetype) ? 'image' : 'video';
 
+  const location = await geocodeLocation(city, country);
+
   let event;
   try {
     event = await Event.create({
@@ -61,6 +64,7 @@ const createEvent = async (req, res) => {
       customEventType: eventType === 'other' ? customEventType.trim() : null,
       city,
       country,
+      location,
       reservationEnabled: reservationEnabled === 'true' || reservationEnabled === true,
       coverMediaType,
       coverMediaUrl,
@@ -109,10 +113,14 @@ const updateEvent = async (req, res) => {
     return res.status(400).json({ message: 'Indica de qué tipo de evento se trata' });
   }
 
+  const locationChanged =
+    (city !== undefined && city !== event.city) || (country !== undefined && country !== event.country);
+
   if (title !== undefined) event.title = title;
   if (description !== undefined) event.description = description;
   if (city !== undefined) event.city = city;
   if (country !== undefined) event.country = country;
+  if (locationChanged) event.location = await geocodeLocation(event.city, event.country);
   if (eventType !== undefined) {
     event.eventType = eventType;
     event.customEventType = eventType === 'other' ? (customEventType || event.customEventType) : null;
@@ -353,4 +361,5 @@ module.exports = {
   getPublicEvents,
   saveEvent,
   unsaveEvent,
+  attachSessionsAndPacks,
 };

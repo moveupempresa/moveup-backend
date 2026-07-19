@@ -3,6 +3,7 @@ const Profile = require('../models/Profile');
 const User = require('../models/User');
 const Follow = require('../models/Follow');
 const { deleteUploadedFile } = require('../utils/fileUtils');
+const { geocodeLocation } = require('../utils/geocode');
 
 const getMyProfile = async (req, res) => {
   const profile = await Profile.findOne({ userId: req.userId });
@@ -42,6 +43,11 @@ const updateMyProfile = async (req, res) => {
     websiteUrl, cvUrl, experience, socialLinks,
   } = req.body;
 
+  const existing = await Profile.findOne({ userId: req.userId });
+  if (!existing) {
+    return res.status(404).json({ message: 'Perfil no encontrado' });
+  }
+
   const update = {};
   if (displayName !== undefined) update.displayName = displayName;
   if (artisticName !== undefined) update.artisticName = artisticName;
@@ -55,6 +61,13 @@ const updateMyProfile = async (req, res) => {
     for (const key of Object.keys(socialLinks)) {
       update[`socialLinks.${key}`] = socialLinks[key];
     }
+  }
+
+  const locationChanged =
+    (city !== undefined && city !== existing.city) ||
+    (country !== undefined && country !== existing.country);
+  if (locationChanged) {
+    update.location = await geocodeLocation(city ?? existing.city, country ?? existing.country);
   }
 
   const profile = await Profile.findOneAndUpdate(

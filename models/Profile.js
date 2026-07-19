@@ -21,6 +21,13 @@ const profileSchema = new mongoose.Schema(
     bio: { type: String, default: '', trim: true, maxlength: 500 },
     city: { type: String, default: '', trim: true, maxlength: 100 },
     country: { type: String, default: '', trim: true, maxlength: 100 },
+    location: {
+      type: new mongoose.Schema(
+        { lat: Number, lng: Number },
+        { _id: false }
+      ),
+      default: null,
+    },
     profileImage: { type: String, default: null },
     websiteUrl: { type: String, default: '', trim: true },
     cvUrl: { type: String, default: '', trim: true },
