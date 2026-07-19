@@ -21,8 +21,6 @@ const createPack = async (req, res) => {
     packType,
     approvalMode,
     maxSelectableSessions,
-    isUnlimitedCapacity,
-    capacity,
     sessionIds,
   } = req.body;
 
@@ -48,8 +46,6 @@ const createPack = async (req, res) => {
       packType,
       approvalMode,
       maxSelectableSessions: maxSelectableSessions != null ? Number(maxSelectableSessions) : null,
-      isUnlimitedCapacity: isUnlimitedCapacity === 'true' || isUnlimitedCapacity === true,
-      capacity: capacity != null ? Number(capacity) : null,
       sessionIds: requestedSessionIds,
     });
   } catch (err) {
@@ -93,8 +89,6 @@ const updatePack = async (req, res) => {
     packType,
     approvalMode,
     maxSelectableSessions,
-    isUnlimitedCapacity,
-    capacity,
     sessionIds,
   } = req.body;
 
@@ -120,11 +114,6 @@ const updatePack = async (req, res) => {
   if (maxSelectableSessions !== undefined) {
     pack.maxSelectableSessions = maxSelectableSessions != null ? Number(maxSelectableSessions) : null;
   }
-  if (isUnlimitedCapacity !== undefined) {
-    pack.isUnlimitedCapacity = isUnlimitedCapacity === 'true' || isUnlimitedCapacity === true;
-  }
-  if (capacity !== undefined) pack.capacity = capacity != null ? Number(capacity) : null;
-  if (pack.isUnlimitedCapacity) pack.capacity = null;
 
   try {
     await pack.save();

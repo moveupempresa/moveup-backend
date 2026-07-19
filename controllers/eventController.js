@@ -38,8 +38,14 @@ const createEvent = async (req, res) => {
     return res.status(400).json({ message: 'La portada del evento es requerida' });
   }
 
-  const { title, description, city, country, reservationEnabled, status } = req.body;
+  const { title, description, city, country, reservationEnabled, status, eventType, customEventType } =
+    req.body;
   const style = JSON.parse(req.body.style || '[]');
+
+  if (eventType === 'other' && !(customEventType || '').trim()) {
+    deleteUploadedFile(`/uploads/${req.file.filename}`);
+    return res.status(400).json({ message: 'Indica de qué tipo de evento se trata' });
+  }
 
   const coverMediaUrl = `/uploads/${req.file.filename}`;
   const coverMediaType = ALLOWED_IMAGE_TYPES.includes(req.file.mimetype) ? 'image' : 'video';
@@ -51,6 +57,8 @@ const createEvent = async (req, res) => {
       title,
       description,
       style,
+      eventType: eventType || undefined,
+      customEventType: eventType === 'other' ? customEventType.trim() : null,
       city,
       country,
       reservationEnabled: reservationEnabled === 'true' || reservationEnabled === true,
@@ -89,17 +97,28 @@ const updateEvent = async (req, res) => {
     city,
     country,
     eventType,
+    customEventType,
     locationType,
     visibility,
     reservationEnabled,
     status,
   } = req.body;
 
+  if (eventType === 'other' && !(customEventType || event.customEventType || '').trim()) {
+    if (req.file) deleteUploadedFile(`/uploads/${req.file.filename}`);
+    return res.status(400).json({ message: 'Indica de qué tipo de evento se trata' });
+  }
+
   if (title !== undefined) event.title = title;
   if (description !== undefined) event.description = description;
   if (city !== undefined) event.city = city;
   if (country !== undefined) event.country = country;
-  if (eventType !== undefined) event.eventType = eventType;
+  if (eventType !== undefined) {
+    event.eventType = eventType;
+    event.customEventType = eventType === 'other' ? (customEventType || event.customEventType) : null;
+  } else if (customEventType !== undefined && event.eventType === 'other') {
+    event.customEventType = customEventType;
+  }
   if (locationType !== undefined) event.locationType = locationType;
   if (visibility !== undefined) event.visibility = visibility;
   if (reservationEnabled !== undefined) {
@@ -254,11 +273,12 @@ const getMyEvents = async (req, res) => {
 };
 
 const getPublicEvents = async (req, res) => {
-  const { title, city, style, username, userId, dateFrom, maxPrice } = req.query;
+  const { title, city, style, username, userId, dateFrom, maxPrice, eventType } = req.query;
 
   const filter = { visibility: 'public', status: 'published' };
   if (title) filter.title = { $regex: escapeRegex(title), $options: 'i' };
   if (city) filter.city = { $regex: escapeRegex(city), $options: 'i' };
+  if (eventType) filter.eventType = eventType;
   if (style) {
     const styleTokens = style
       .split(/[,#\s]+/)

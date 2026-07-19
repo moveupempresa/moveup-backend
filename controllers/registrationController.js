@@ -55,6 +55,9 @@ const findPackRegistrationsForSession = async (eventId, sessionId) => {
 const createHandlers = (targetType) => {
   const { Model, paramName, label } = TARGET_CONFIG[targetType];
 
+  // Packs have no capacity of their own - only the sessions they cover do.
+  const isUnlimited = (target) => targetType === 'pack' || target.isUnlimitedCapacity;
+
   const resolveSelectedSessions = (req, target) => {
     if (targetType !== 'pack' || target.packType !== 'customizable') {
       return { selectedSessionIds: undefined };
@@ -97,8 +100,9 @@ const createHandlers = (targetType) => {
     const { event, target } = loaded;
     const targetId = target._id;
     const requiresApproval = targetType === 'pack' && target.approvalMode === 'manual';
+    const requiresPayment = targetType === 'pack' && target.paymentType === 'online';
 
-    if (!target.isUnlimitedCapacity) {
+    if (!isUnlimited(target)) {
       const confirmedCount = await countConfirmed(targetType, targetId);
       if (confirmedCount >= target.capacity) {
         return res.status(400).json({
@@ -150,6 +154,44 @@ const createHandlers = (targetType) => {
       return res.status(200).json({ status: 'pending', confirmedCount });
     }
 
+    if (requiresPayment) {
+      if (existing && (existing.status === 'confirmed' || existing.status === 'awaiting_payment')) {
+        const confirmedCount = await countConfirmed(targetType, targetId);
+        return res.status(200).json({ status: existing.status, confirmedCount });
+      }
+
+      const { selectedSessionIds, error: selectionError } = resolveSelectedSessions(req, target);
+      if (selectionError) {
+        return res.status(400).json({ message: selectionError });
+      }
+
+      if (existing) {
+        existing.status = 'awaiting_payment';
+        if (selectedSessionIds) existing.selectedSessionIds = selectedSessionIds;
+        await existing.save();
+      } else {
+        await Registration.create({
+          userId: req.userId,
+          eventId: target.eventId,
+          targetType,
+          targetId,
+          status: 'awaiting_payment',
+          ...(selectedSessionIds ? { selectedSessionIds } : {}),
+        });
+      }
+      await Notification.create({
+        userId: req.userId,
+        type: 'payment_required',
+        message: `Completa el pago para reservar tu plaza en ${label(target)}`,
+        relatedEventId: target.eventId,
+        relatedTargetType: targetType,
+        relatedTargetId: targetId,
+      });
+
+      const confirmedCount = await countConfirmed(targetType, targetId);
+      return res.status(200).json({ status: 'awaiting_payment', confirmedCount });
+    }
+
     if (!existing || existing.status !== 'confirmed') {
       const { selectedSessionIds, error: selectionError } = resolveSelectedSessions(req, target);
       if (selectionError) {
@@ -195,7 +237,7 @@ const createHandlers = (targetType) => {
   };
 
   const freeUpSpot = async (target) => {
-    if (target.isUnlimitedCapacity) return;
+    if (isUnlimited(target)) return;
     const confirmedCount = await countConfirmed(targetType, target._id);
     if (confirmedCount >= target.capacity) return;
 
@@ -233,7 +275,12 @@ const createHandlers = (targetType) => {
     });
 
     if (!deleted) {
-      await Registration.deleteOne({ userId: req.userId, targetType, targetId, status: 'pending' });
+      await Registration.deleteOne({
+        userId: req.userId,
+        targetType,
+        targetId,
+        status: { $in: ['pending', 'awaiting_payment'] },
+      });
     }
 
     if (deleted) await freeUpSpot(target);
@@ -248,7 +295,7 @@ const createHandlers = (targetType) => {
     const { target } = loaded;
     const targetId = target._id;
 
-    if (target.isUnlimitedCapacity) {
+    if (isUnlimited(target)) {
       return res.status(400).json({ message: 'Este aforo es ilimitado, puedes inscribirte directamente' });
     }
     const confirmedCount = await countConfirmed(targetType, targetId);
@@ -407,27 +454,23 @@ const approvePackRequest = async (req, res) => {
   const registration = await Registration.findOne({ userId, targetType: 'pack', targetId: packId, status: 'pending' });
   if (!registration) return res.status(404).json({ message: 'Solicitud no encontrada' });
 
-  if (!pack.isUnlimitedCapacity) {
-    const confirmedCount = await countConfirmed('pack', packId);
-    if (confirmedCount >= pack.capacity) {
-      return res.status(400).json({ message: 'Está completo, no se pueden aprobar más solicitudes' });
-    }
-  }
-
-  registration.status = 'confirmed';
+  const requiresPayment = pack.paymentType === 'online';
+  registration.status = requiresPayment ? 'awaiting_payment' : 'confirmed';
   await registration.save();
 
   await Notification.create({
     userId,
-    type: 'signup_approved',
-    message: `Tu inscripción a ${TARGET_CONFIG.pack.label(pack)} ha sido aprobada`,
+    type: requiresPayment ? 'payment_required' : 'signup_approved',
+    message: requiresPayment
+      ? `Tu solicitud para ${TARGET_CONFIG.pack.label(pack)} fue aprobada. Completa el pago para reservar tu plaza`
+      : `Tu inscripción a ${TARGET_CONFIG.pack.label(pack)} ha sido aprobada`,
     relatedEventId: eventId,
     relatedTargetType: 'pack',
     relatedTargetId: packId,
   });
 
   const confirmedCount = await countConfirmed('pack', packId);
-  return res.status(200).json({ status: 'confirmed', confirmedCount });
+  return res.status(200).json({ status: registration.status, confirmedCount });
 };
 
 const rejectPackRequest = async (req, res) => {
@@ -504,11 +547,21 @@ const payForPack = async (req, res) => {
     targetId: packId,
   });
   if (!registration) return res.status(404).json({ message: 'No estás inscrito en este pack' });
+  if (registration.status !== 'awaiting_payment') {
+    return res.status(400).json({ message: 'No tienes un pago pendiente para este pack' });
+  }
 
+  registration.status = 'confirmed';
   registration.hasPaid = true;
   await registration.save();
 
   const payer = await User.findById(req.userId);
+  await Notification.create({
+    userId: req.userId,
+    type: 'signed_up',
+    message: `Te has inscrito a ${TARGET_CONFIG.pack.label(pack)}`,
+    relatedEventId: eventId,
+  });
   await Notification.create({
     userId: event.ownerUserId,
     type: 'pack_paid',
@@ -563,7 +616,7 @@ const notifyRegistrantsOfUpdate = async (targetType, targetId, eventId, targetNa
   const registrations = await Registration.find({
     targetType,
     targetId,
-    status: { $in: ['confirmed', 'waitlisted', 'pending'] },
+    status: { $in: ['confirmed', 'waitlisted', 'pending', 'awaiting_payment'] },
   });
   if (registrations.length === 0) return;
 
@@ -588,7 +641,6 @@ module.exports = {
   joinSessionWaitlist: sessionHandlers.joinWaitlist,
   leaveSessionWaitlist: sessionHandlers.leaveWaitlist,
   getSessionRegistrants: sessionHandlers.getRegistrants,
-  revokeSessionRegistration: sessionHandlers.revokeRegistration,
   markSessionAttendance,
   signUpForPack: packHandlers.signUp,
   cancelPackSignUp: packHandlers.cancelSignUp,

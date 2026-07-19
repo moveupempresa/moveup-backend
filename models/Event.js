@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const EVENT_TYPES = [
   'class', 'workshop', 'intensive', 'training', 'formation',
-  'casting', 'competition', 'battle', 'party', 'special_event',
+  'casting', 'competition', 'battle', 'party', 'special_event', 'other',
 ];
 const LOCATION_TYPES = ['presential', 'online'];
 const VISIBILITIES = ['public', 'private'];
@@ -21,9 +21,13 @@ const eventSchema = new mongoose.Schema(
     style: {
       type: [String],
       required: true,
-      validate: { validator: (arr) => arr.length > 0, message: 'At least one style is required' },
+      validate: {
+        validator: (arr) => arr.length > 0 && arr.length <= 3,
+        message: 'Choose between 1 and 3 styles',
+      },
     },
     eventType: { type: String, enum: EVENT_TYPES, default: 'special_event' },
+    customEventType: { type: String, default: null, trim: true },
     city: { type: String, required: true, trim: true },
     country: { type: String, required: true, trim: true },
     locationType: { type: String, enum: LOCATION_TYPES, default: 'presential' },

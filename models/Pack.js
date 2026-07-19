@@ -18,8 +18,6 @@ const packSchema = new mongoose.Schema(
     packType: { type: String, enum: PACK_TYPES, required: true },
     approvalMode: { type: String, enum: APPROVAL_MODES, required: true },
     maxSelectableSessions: { type: Number, default: null },
-    isUnlimitedCapacity: { type: Boolean, default: false },
-    capacity: { type: Number, default: null },
     sessionIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Session' }],
   },
   {
