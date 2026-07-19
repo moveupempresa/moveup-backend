@@ -275,10 +275,43 @@ const createHandlers = (targetType) => {
       return res.status(403).json({ message: 'No autorizado' });
     }
 
-    const registrations = await Registration.find({ targetType, targetId: target._id }).sort({
-      createdAt: 1,
-    });
-    const userIds = registrations.map((r) => r.userId);
+    const directRegistrations = await Registration.find({ targetType, targetId: target._id });
+
+    // A session's attendees also include people who joined it through a pack:
+    // everyone in a fixed pack that includes this session, or whoever picked
+    // this session in a customizable pack.
+    let packRegistrations = [];
+    const packNameByRegistrationId = {};
+    if (targetType === 'session') {
+      const packs = await Pack.find({ eventId: event._id });
+      const relevantPacks = packs.filter((p) =>
+        p.sessionIds.some((id) => id.toString() === target._id.toString())
+      );
+      if (relevantPacks.length > 0) {
+        const packById = {};
+        relevantPacks.forEach((p) => {
+          packById[p._id.toString()] = p;
+        });
+        const candidateRegs = await Registration.find({
+          targetType: 'pack',
+          targetId: { $in: relevantPacks.map((p) => p._id) },
+        });
+        packRegistrations = candidateRegs.filter((r) => {
+          const pack = packById[r.targetId.toString()];
+          return pack.packType === 'fixed' ||
+            (r.selectedSessionIds || []).some((id) => id.toString() === target._id.toString());
+        });
+        packRegistrations.forEach((r) => {
+          packNameByRegistrationId[r._id.toString()] = packById[r.targetId.toString()].name;
+        });
+      }
+    }
+
+    const allRegistrations = [...directRegistrations, ...packRegistrations].sort(
+      (a, b) => a.createdAt - b.createdAt
+    );
+
+    const userIds = allRegistrations.map((r) => r.userId);
     const [users, profiles] = await Promise.all([
       User.find({ _id: { $in: userIds } }),
       Profile.find({ userId: { $in: userIds } }),
@@ -292,7 +325,7 @@ const createHandlers = (targetType) => {
       profileByUser[p.userId.toString()] = p;
     });
 
-    const registrants = registrations.map((r) => {
+    const registrants = allRegistrations.map((r) => {
       const uid = r.userId.toString();
       const profile = profileByUser[uid];
       return {
@@ -303,6 +336,7 @@ const createHandlers = (targetType) => {
         status: r.status,
         selectedSessionIds: (r.selectedSessionIds || []).map((id) => id.toString()),
         hasPaid: r.hasPaid,
+        viaPack: packNameByRegistrationId[r._id.toString()] || null,
         createdAt: r.createdAt,
       };
     });
