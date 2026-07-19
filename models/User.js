@@ -33,6 +33,16 @@ const userSchema = new mongoose.Schema(
       default: 'free',
       required: true,
     },
+    billingAccountHolder: {
+      type: String,
+      select: false,
+      default: null,
+    },
+    billingIban: {
+      type: String,
+      select: false,
+      default: null,
+    },
     resetCodeHash: {
       type: String,
       select: false,
@@ -69,6 +79,8 @@ const userSchema = new mongoose.Schema(
         delete ret.pendingEmail;
         delete ret.emailChangeCodeHash;
         delete ret.emailChangeCodeExpiresAt;
+        delete ret.billingAccountHolder;
+        delete ret.billingIban;
         return ret;
       },
     },
