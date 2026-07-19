@@ -174,6 +174,9 @@ const attachSessionsAndPacks = async (events, viewerId) => {
     targetId: { $in: [...sessionIds, ...packIds] },
   });
 
+  const packById = {};
+  for (const pack of packs) packById[pack._id.toString()] = pack;
+
   const confirmedCountByTarget = {};
   const viewerStatusByTarget = {};
   const viewerSelectedSessionsByTarget = {};
@@ -181,6 +184,20 @@ const attachSessionsAndPacks = async (events, viewerId) => {
     const key = reg.targetId.toString();
     if (reg.status === 'confirmed') {
       confirmedCountByTarget[key] = (confirmedCountByTarget[key] || 0) + 1;
+      // A confirmed pack registration also occupies a spot in whichever
+      // sessions it covers (all of them for a fixed pack, the chosen ones
+      // for a customizable pack), so those sessions' counts must reflect it.
+      if (reg.targetType === 'pack') {
+        const pack = packById[key];
+        if (pack) {
+          const coveredSessionIds = pack.packType === 'fixed'
+            ? pack.sessionIds.map((id) => id.toString())
+            : (reg.selectedSessionIds || []).map((id) => id.toString());
+          for (const sid of coveredSessionIds) {
+            confirmedCountByTarget[sid] = (confirmedCountByTarget[sid] || 0) + 1;
+          }
+        }
+      }
     }
     if (viewerId && reg.userId.toString() === viewerId) {
       viewerStatusByTarget[key] = reg.status;

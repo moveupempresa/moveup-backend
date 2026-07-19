@@ -23,6 +23,7 @@ const registrationSchema = new mongoose.Schema(
     status: { type: String, enum: STATUSES, default: 'confirmed', required: true },
     selectedSessionIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Session' }],
     hasPaid: { type: Boolean, default: false },
+    attendedSessionIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Session' }],
   },
   {
     timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
@@ -35,6 +36,7 @@ const registrationSchema = new mongoose.Schema(
         ret.eventId = ret.eventId.toString();
         ret.targetId = ret.targetId.toString();
         ret.selectedSessionIds = (ret.selectedSessionIds || []).map((id) => id.toString());
+        ret.attendedSessionIds = (ret.attendedSessionIds || []).map((id) => id.toString());
         delete ret._id;
         return ret;
       },

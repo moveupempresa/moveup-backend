@@ -27,6 +27,7 @@ const {
   leaveSessionWaitlist,
   getSessionRegistrants,
   revokeSessionRegistration,
+  markSessionAttendance,
   signUpForPack,
   cancelPackSignUp,
   joinPackWaitlist,
@@ -61,6 +62,7 @@ router.post('/:eventId/sessions/:sessionId/waitlist', joinSessionWaitlist);
 router.delete('/:eventId/sessions/:sessionId/waitlist', leaveSessionWaitlist);
 router.get('/:eventId/sessions/:sessionId/registrations', getSessionRegistrants);
 router.delete('/:eventId/sessions/:sessionId/registrations/:userId', revokeSessionRegistration);
+router.post('/:eventId/sessions/:sessionId/registrations/:userId/attendance', markSessionAttendance);
 router.get('/:eventId/packs', getEventPacks);
 router.post('/:eventId/packs', createPack);
 router.put('/:eventId/packs/:packId', updatePack);

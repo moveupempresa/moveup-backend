@@ -22,6 +22,36 @@ const TARGET_CONFIG = {
 const countConfirmed = (targetType, targetId) =>
   Registration.countDocuments({ targetType, targetId, status: 'confirmed' });
 
+// A session's attendees also include people who joined it through a pack:
+// everyone in a fixed pack that includes this session, or whoever picked
+// this session in a customizable pack.
+const findPackRegistrationsForSession = async (eventId, sessionId) => {
+  const packs = await Pack.find({ eventId });
+  const relevantPacks = packs.filter((p) =>
+    p.sessionIds.some((id) => id.toString() === sessionId.toString())
+  );
+  if (relevantPacks.length === 0) return { registrations: [], nameByRegistrationId: {} };
+
+  const packById = {};
+  relevantPacks.forEach((p) => {
+    packById[p._id.toString()] = p;
+  });
+  const candidateRegs = await Registration.find({
+    targetType: 'pack',
+    targetId: { $in: relevantPacks.map((p) => p._id) },
+  });
+  const registrations = candidateRegs.filter((r) => {
+    const pack = packById[r.targetId.toString()];
+    return pack.packType === 'fixed' ||
+      (r.selectedSessionIds || []).some((id) => id.toString() === sessionId.toString());
+  });
+  const nameByRegistrationId = {};
+  registrations.forEach((r) => {
+    nameByRegistrationId[r._id.toString()] = packById[r.targetId.toString()].name;
+  });
+  return { registrations, nameByRegistrationId };
+};
+
 const createHandlers = (targetType) => {
   const { Model, paramName, label } = TARGET_CONFIG[targetType];
 
@@ -277,34 +307,11 @@ const createHandlers = (targetType) => {
 
     const directRegistrations = await Registration.find({ targetType, targetId: target._id });
 
-    // A session's attendees also include people who joined it through a pack:
-    // everyone in a fixed pack that includes this session, or whoever picked
-    // this session in a customizable pack.
     let packRegistrations = [];
-    const packNameByRegistrationId = {};
+    let packNameByRegistrationId = {};
     if (targetType === 'session') {
-      const packs = await Pack.find({ eventId: event._id });
-      const relevantPacks = packs.filter((p) =>
-        p.sessionIds.some((id) => id.toString() === target._id.toString())
-      );
-      if (relevantPacks.length > 0) {
-        const packById = {};
-        relevantPacks.forEach((p) => {
-          packById[p._id.toString()] = p;
-        });
-        const candidateRegs = await Registration.find({
-          targetType: 'pack',
-          targetId: { $in: relevantPacks.map((p) => p._id) },
-        });
-        packRegistrations = candidateRegs.filter((r) => {
-          const pack = packById[r.targetId.toString()];
-          return pack.packType === 'fixed' ||
-            (r.selectedSessionIds || []).some((id) => id.toString() === target._id.toString());
-        });
-        packRegistrations.forEach((r) => {
-          packNameByRegistrationId[r._id.toString()] = packById[r.targetId.toString()].name;
-        });
-      }
+      ({ registrations: packRegistrations, nameByRegistrationId: packNameByRegistrationId } =
+        await findPackRegistrationsForSession(event._id, target._id));
     }
 
     const allRegistrations = [...directRegistrations, ...packRegistrations].sort(
@@ -337,6 +344,8 @@ const createHandlers = (targetType) => {
         selectedSessionIds: (r.selectedSessionIds || []).map((id) => id.toString()),
         hasPaid: r.hasPaid,
         viaPack: packNameByRegistrationId[r._id.toString()] || null,
+        attended: targetType === 'session' &&
+          (r.attendedSessionIds || []).some((id) => id.toString() === target._id.toString()),
         createdAt: r.createdAt,
       };
     });
@@ -513,6 +522,43 @@ const payForPack = async (req, res) => {
   return res.status(200).json({ hasPaid: true });
 };
 
+const markSessionAttendance = async (req, res) => {
+  const { eventId, sessionId, userId } = req.params;
+  const attended = Boolean(req.body?.attended);
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+  if (event.ownerUserId.toString() !== req.userId) {
+    return res.status(403).json({ message: 'No autorizado' });
+  }
+
+  const session = await Session.findOne({ _id: sessionId, eventId });
+  if (!session) return res.status(404).json({ message: 'Sesión no encontrada' });
+
+  let registration = await Registration.findOne({ userId, targetType: 'session', targetId: sessionId });
+  if (!registration) {
+    const { registrations } = await findPackRegistrationsForSession(eventId, sessionId);
+    registration = registrations.find((r) => r.userId.toString() === userId) || null;
+  }
+  if (!registration) return res.status(404).json({ message: 'Inscripción no encontrada' });
+
+  const alreadyAttended = registration.attendedSessionIds
+    .map((id) => id.toString())
+    .includes(sessionId.toString());
+
+  if (attended && !alreadyAttended) {
+    registration.attendedSessionIds.push(sessionId);
+    await registration.save();
+  } else if (!attended && alreadyAttended) {
+    registration.attendedSessionIds = registration.attendedSessionIds.filter(
+      (id) => id.toString() !== sessionId.toString()
+    );
+    await registration.save();
+  }
+
+  return res.status(200).json({ attended });
+};
+
 const notifyRegistrantsOfUpdate = async (targetType, targetId, eventId, targetName) => {
   const registrations = await Registration.find({
     targetType,
@@ -543,6 +589,7 @@ module.exports = {
   leaveSessionWaitlist: sessionHandlers.leaveWaitlist,
   getSessionRegistrants: sessionHandlers.getRegistrants,
   revokeSessionRegistration: sessionHandlers.revokeRegistration,
+  markSessionAttendance,
   signUpForPack: packHandlers.signUp,
   cancelPackSignUp: packHandlers.cancelSignUp,
   joinPackWaitlist: packHandlers.joinWaitlist,
