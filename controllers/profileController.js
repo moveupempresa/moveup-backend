@@ -90,44 +90,47 @@ const uploadProfileImage = async (req, res) => {
 const GALLERY_LIMIT = 12;
 
 const addGalleryImage = async (req, res) => {
-  if (!req.file) {
+  const files = req.files || [];
+  if (files.length === 0) {
     return res.status(400).json({ message: 'No se recibió ningún archivo' });
   }
 
   const profile = await Profile.findOne({ userId: req.userId });
   if (!profile) {
-    deleteUploadedFile(`/uploads/${req.file.filename}`);
+    files.forEach((f) => deleteUploadedFile(`/uploads/${f.filename}`));
     return res.status(404).json({ message: 'Perfil no encontrado' });
   }
 
   if (profile.gallery.length >= GALLERY_LIMIT) {
-    deleteUploadedFile(`/uploads/${req.file.filename}`);
+    files.forEach((f) => deleteUploadedFile(`/uploads/${f.filename}`));
     return res
       .status(400)
       .json({ message: `Solo puedes tener hasta ${GALLERY_LIMIT} elementos en tu galería` });
   }
 
-  profile.gallery.push(`/uploads/${req.file.filename}`);
+  profile.gallery.push({ urls: files.map((f) => `/uploads/${f.filename}`) });
   await profile.save();
 
   return res.status(200).json({ profile: profile.toJSON() });
 };
 
 const removeGalleryImage = async (req, res) => {
-  const { url } = req.body;
+  const { id } = req.body;
 
   const profile = await Profile.findOne({ userId: req.userId });
   if (!profile) {
     return res.status(404).json({ message: 'Perfil no encontrado' });
   }
 
-  if (!profile.gallery.includes(url)) {
-    return res.status(404).json({ message: 'Imagen no encontrada en la galería' });
+  const album = profile.gallery.id(id);
+  if (!album) {
+    return res.status(404).json({ message: 'Elemento no encontrado en la galería' });
   }
 
-  profile.gallery = profile.gallery.filter((item) => item !== url);
+  const urls = [...album.urls];
+  album.deleteOne();
   await profile.save();
-  deleteUploadedFile(url);
+  urls.forEach((url) => deleteUploadedFile(url));
 
   return res.status(200).json({ profile: profile.toJSON() });
 };

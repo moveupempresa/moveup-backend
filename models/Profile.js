@@ -1,5 +1,13 @@
 const mongoose = require('mongoose');
 
+const galleryAlbumSchema = new mongoose.Schema({
+  urls: {
+    type: [String],
+    required: true,
+    validate: { validator: (arr) => arr.length > 0, message: 'Album must have at least one file' },
+  },
+});
+
 const profileSchema = new mongoose.Schema(
   {
     userId: {
@@ -17,7 +25,7 @@ const profileSchema = new mongoose.Schema(
     websiteUrl: { type: String, default: '', trim: true },
     cvUrl: { type: String, default: '', trim: true },
     experience: { type: Number, default: 0, min: 0, max: 100 },
-    gallery: { type: [String], default: [] },
+    gallery: { type: [galleryAlbumSchema], default: [] },
     socialLinks: {
       instagram: { type: String, default: '', trim: true },
       tiktok: { type: String, default: '', trim: true },
@@ -34,6 +42,10 @@ const profileSchema = new mongoose.Schema(
       transform: (_doc, ret) => {
         ret.id = ret._id.toString();
         ret.userId = ret.userId.toString();
+        ret.gallery = (ret.gallery || []).map((item) => ({
+          id: item._id.toString(),
+          urls: item.urls,
+        }));
         delete ret._id;
         return ret;
       },

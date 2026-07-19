@@ -1,6 +1,8 @@
+const mongoose = require('mongoose');
+
 const validateGalleryDelete = (req, res, next) => {
-  const { url } = req.body;
-  if (typeof url !== 'string' || !url.startsWith('/uploads/')) {
+  const { id } = req.body;
+  if (typeof id !== 'string' || !mongoose.Types.ObjectId.isValid(id)) {
     return res.status(400).json({ message: 'Invalid request body' });
   }
   next();

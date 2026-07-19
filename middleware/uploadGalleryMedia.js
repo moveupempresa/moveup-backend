@@ -27,7 +27,7 @@ const uploadGalleryMedia = multer({
 });
 
 const handleGalleryMediaUpload = (req, res, next) => {
-  uploadGalleryMedia.single('image')(req, res, (err) => {
+  uploadGalleryMedia.array('images', 10)(req, res, (err) => {
     if (!err) return next();
     if (err.message === 'INVALID_FILE_TYPE') {
       return res.status(400).json({ message: 'Solo se permiten imágenes (JPEG, PNG, WEBP) o videos (MP4, MOV, AVI)' });
