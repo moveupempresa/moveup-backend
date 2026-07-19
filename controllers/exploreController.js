@@ -112,7 +112,14 @@ const getExploreSections = async (req, res) => {
 
   const popularProfiles = await getPopularProfiles(viewerId);
 
-  return res.json({ nearYou, newest, popular, forYou, popularProfiles });
+  return res.json({
+    nearYou,
+    newest,
+    popular,
+    forYou,
+    popularProfiles,
+    viewerHasLocation: Boolean(viewerLocation),
+  });
 };
 
 const getPopularProfiles = async (viewerId) => {
