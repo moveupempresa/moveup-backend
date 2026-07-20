@@ -282,7 +282,8 @@ const getMyEvents = async (req, res) => {
 };
 
 const getPublicEvents = async (req, res) => {
-  const { title, city, style, username, userId, dateFrom, maxPrice, eventType, savedOnly } = req.query;
+  const { title, city, style, username, userId, dateFrom, dateTo, maxPrice, eventType, savedOnly } =
+    req.query;
 
   const filter = { visibility: 'public', status: 'published' };
   if (savedOnly === 'true') {
@@ -306,23 +307,27 @@ const getPublicEvents = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(userId)) return res.json({ events: [] });
     filter.ownerUserId = userId;
   } else if (username) {
-    const owner = await User.findOne({
-      username: { $regex: `^${escapeRegex(username)}$`, $options: 'i' },
+    const owners = await User.find({
+      username: { $regex: escapeRegex(username), $options: 'i' },
     });
-    if (!owner) return res.json({ events: [] });
-    filter.ownerUserId = owner._id;
+    if (owners.length === 0) return res.json({ events: [] });
+    filter.ownerUserId = { $in: owners.map((o) => o._id) };
   }
 
   const events = await Event.find(filter).sort({ createdAt: -1 });
   let result = await attachSessionsAndPacks(events, req.userId);
 
-  if (dateFrom) {
-    const fromDate = new Date(dateFrom);
-    if (!Number.isNaN(fromDate.getTime())) {
-      result = result.filter((e) =>
-        e.sessions.some((s) => new Date(s.startDatetime) >= fromDate)
-      );
-    }
+  if (dateFrom || dateTo) {
+    const fromDate = dateFrom ? new Date(dateFrom) : null;
+    const toDate = dateTo ? new Date(dateTo) : null;
+    result = result.filter((e) =>
+      e.sessions.some((s) => {
+        const start = new Date(s.startDatetime);
+        if (fromDate && !Number.isNaN(fromDate.getTime()) && start < fromDate) return false;
+        if (toDate && !Number.isNaN(toDate.getTime()) && start > toDate) return false;
+        return true;
+      })
+    );
   }
 
   if (maxPrice !== undefined) {

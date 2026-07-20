@@ -26,6 +26,16 @@ const maxCapacityRatio = (event) => {
   return ratios.length ? Math.max(...ratios) : 0;
 };
 
+// Soonest still-upcoming session, or Infinity if the event has none left -
+// used to push events with no future sessions to the back of a listing.
+const nextSessionTime = (event) => {
+  const now = Date.now();
+  const future = (event.sessions || [])
+    .map((s) => new Date(s.startDatetime).getTime())
+    .filter((t) => t >= now);
+  return future.length ? Math.min(...future) : Infinity;
+};
+
 const getExploreSections = async (req, res) => {
   const viewerId = req.userId;
 
@@ -110,6 +120,11 @@ const getExploreSections = async (req, res) => {
     .slice(0, SECTION_LIMIT)
     .map((x) => x.event);
 
+  const castings = enrichedEvents
+    .filter((event) => event.eventType === 'casting')
+    .sort((a, b) => nextSessionTime(a) - nextSessionTime(b))
+    .slice(0, SECTION_LIMIT);
+
   const popularProfiles = await getPopularProfiles(viewerId);
 
   return res.json({
@@ -117,6 +132,7 @@ const getExploreSections = async (req, res) => {
     newest,
     popular,
     forYou,
+    castings,
     popularProfiles,
     viewerHasLocation: Boolean(viewerLocation),
   });
