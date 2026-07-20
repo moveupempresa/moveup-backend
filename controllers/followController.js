@@ -77,9 +77,12 @@ const getMyFollowing = async (req, res) => {
       userId: id,
       username: usernameByUser[id] || '',
       displayName: profileByUser[id].displayName,
+      artisticName: profileByUser[id].artisticName,
+      bio: profileByUser[id].bio,
       profileImage: profileByUser[id].profileImage,
       city: profileByUser[id].city,
       country: profileByUser[id].country,
+      experience: profileByUser[id].experience,
       followersCount: countByUser[id] || 0,
       isFollowing: true,
     }));
