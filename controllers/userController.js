@@ -8,6 +8,15 @@ const USERNAME_REGEX = /^[A-Za-z0-9_.-]{3,30}$/;
 const CODE_TTL_MS = 10 * 60 * 1000;
 const generateCode = () => Math.floor(100000 + Math.random() * 900000).toString();
 
+const getCurrentSession = async (req, res) => {
+  const [user, profile] = await Promise.all([
+    User.findById(req.userId),
+    Profile.findOne({ userId: req.userId }),
+  ]);
+  if (!user || !profile) return res.status(404).json({ message: 'Usuario no encontrado' });
+  return res.status(200).json({ user: user.toJSON(), profile: profile.toJSON() });
+};
+
 const changeUsername = async (req, res) => {
   const { username } = req.body;
 
@@ -92,4 +101,10 @@ const deleteAccount = async (req, res) => {
   return res.status(204).send();
 };
 
-module.exports = { changeUsername, requestEmailChange, confirmEmailChange, deleteAccount };
+module.exports = {
+  getCurrentSession,
+  changeUsername,
+  requestEmailChange,
+  confirmEmailChange,
+  deleteAccount,
+};
