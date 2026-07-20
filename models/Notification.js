@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const NOTIFICATION_TYPES = [
   'followed_user',
   'followed_user_new_event',
+  'new_follower',
   'signed_up',
   'waitlisted',
   'spot_available',

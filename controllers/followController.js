@@ -14,7 +14,10 @@ const followUser = async (req, res) => {
     return res.status(400).json({ message: 'No puedes seguirte a ti mismo' });
   }
 
-  const targetUser = await User.findById(userId);
+  const [targetUser, follower] = await Promise.all([
+    User.findById(userId),
+    User.findById(req.userId),
+  ]);
   if (!targetUser) return res.status(404).json({ message: 'Usuario no encontrado' });
 
   const result = await Follow.updateOne(
@@ -30,6 +33,14 @@ const followUser = async (req, res) => {
       message: `Has empezado a seguir a ${targetUser.username}`,
       relatedUserId: userId,
     });
+    if (follower) {
+      await Notification.create({
+        userId: userId,
+        type: 'new_follower',
+        message: `${follower.username} ha empezado a seguirte`,
+        relatedUserId: req.userId,
+      });
+    }
   }
 
   const followersCount = await Follow.countDocuments({ followingId: userId });
