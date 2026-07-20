@@ -5,6 +5,7 @@ const Registration = require('../models/Registration');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const { attachSessionsAndPacks } = require('./eventController');
 
 const TARGET_CONFIG = {
   session: {
@@ -635,6 +636,80 @@ const notifyRegistrantsOfUpdate = async (targetType, targetId, eventId, targetNa
   );
 };
 
+// Every session/pack the user has ever signed up for (any status), each
+// paired with the full enriched event it belongs to so the frontend can
+// navigate straight into EventDetailScreen without a second fetch.
+const getMyReservations = async (req, res) => {
+  const registrations = await Registration.find({ userId: req.userId }).sort({ createdAt: -1 });
+  if (registrations.length === 0) return res.json({ reservations: [] });
+
+  const eventIds = [...new Set(registrations.map((r) => r.eventId.toString()))];
+  const events = await Event.find({ _id: { $in: eventIds } });
+  const enrichedEvents = await attachSessionsAndPacks(events, req.userId);
+  const eventById = {};
+  for (const e of enrichedEvents) eventById[e.id] = e;
+
+  const now = Date.now();
+  const reservations = registrations
+    .map((reg) => {
+      const event = eventById[reg.eventId.toString()];
+      if (!event) return null;
+
+      let targetName;
+      let relevantSessions;
+      let price = null;
+      let paymentType = null;
+
+      if (reg.targetType === 'session') {
+        const session = event.sessions.find((s) => s.id === reg.targetId.toString());
+        if (!session) return null;
+        targetName = session.name;
+        relevantSessions = [session];
+      } else {
+        const pack = event.packs.find((p) => p.id === reg.targetId.toString());
+        if (!pack) return null;
+        targetName = pack.name;
+        const coveredIds =
+          pack.packType === 'fixed'
+            ? pack.sessionIds
+            : (reg.selectedSessionIds || []).map((id) => id.toString());
+        relevantSessions = event.sessions.filter((s) => coveredIds.includes(s.id));
+        price = pack.price;
+        paymentType = pack.paymentType;
+      }
+
+      const futureSessions = relevantSessions.filter(
+        (s) => new Date(s.startDatetime).getTime() >= now
+      );
+      const isPast = relevantSessions.length > 0 && futureSessions.length === 0;
+      const dateSource = isPast ? relevantSessions : futureSessions.length ? futureSessions : relevantSessions;
+      const sessionDate = dateSource.length
+        ? new Date(
+            isPast
+              ? Math.max(...dateSource.map((s) => new Date(s.startDatetime).getTime()))
+              : Math.min(...dateSource.map((s) => new Date(s.startDatetime).getTime()))
+          )
+        : null;
+
+      return {
+        id: reg.id,
+        targetType: reg.targetType,
+        targetId: reg.targetId.toString(),
+        targetName,
+        status: reg.status,
+        hasPaid: reg.hasPaid,
+        sessionDate,
+        isPast,
+        price,
+        paymentType,
+        event,
+      };
+    })
+    .filter(Boolean);
+
+  return res.json({ reservations });
+};
+
 module.exports = {
   signUpForSession: sessionHandlers.signUp,
   cancelSessionSignUp: sessionHandlers.cancelSignUp,
@@ -653,4 +728,5 @@ module.exports = {
   setPackPaymentStatus,
   payForPack,
   notifyRegistrantsOfUpdate,
+  getMyReservations,
 };

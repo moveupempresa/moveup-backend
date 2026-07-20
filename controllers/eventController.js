@@ -282,9 +282,14 @@ const getMyEvents = async (req, res) => {
 };
 
 const getPublicEvents = async (req, res) => {
-  const { title, city, style, username, userId, dateFrom, maxPrice, eventType } = req.query;
+  const { title, city, style, username, userId, dateFrom, maxPrice, eventType, savedOnly } = req.query;
 
   const filter = { visibility: 'public', status: 'published' };
+  if (savedOnly === 'true') {
+    const saved = await SavedEvent.find({ userId: req.userId });
+    if (saved.length === 0) return res.json({ events: [] });
+    filter._id = { $in: saved.map((s) => s.eventId) };
+  }
   if (title) filter.title = { $regex: escapeRegex(title), $options: 'i' };
   if (city) filter.city = { $regex: escapeRegex(city), $options: 'i' };
   if (eventType) filter.eventType = eventType;
