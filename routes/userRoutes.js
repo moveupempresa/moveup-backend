@@ -7,7 +7,7 @@ const {
   confirmEmailChange,
   deleteAccount,
 } = require('../controllers/userController');
-const { followUser, unfollowUser } = require('../controllers/followController');
+const { followUser, unfollowUser, getMyFollowing } = require('../controllers/followController');
 const { getMyReservations } = require('../controllers/registrationController');
 const userRateLimit = require('../middleware/userRateLimit');
 const passwordResetRateLimit = require('../middleware/passwordResetRateLimit');
@@ -53,6 +53,7 @@ router.post('/downgrade-to-free', userRateLimit, async (req, res) => {
 });
 
 router.get('/me/reservations', getMyReservations);
+router.get('/me/following', getMyFollowing);
 router.patch('/me/username', userRateLimit, changeUsername);
 router.post('/me/request-email-change', passwordResetRateLimit, requestEmailChange);
 router.post('/me/confirm-email-change', passwordResetRateLimit, confirmEmailChange);

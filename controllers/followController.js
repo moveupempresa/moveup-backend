@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Follow = require('../models/Follow');
 const User = require('../models/User');
+const Profile = require('../models/Profile');
 const Notification = require('../models/Notification');
 
 const followUser = async (req, res) => {
@@ -48,4 +49,42 @@ const unfollowUser = async (req, res) => {
   return res.status(200).json({ isFollowing: false, followersCount });
 };
 
-module.exports = { followUser, unfollowUser };
+const getMyFollowing = async (req, res) => {
+  const follows = await Follow.find({ followerId: req.userId }).sort({ createdAt: -1 });
+  if (follows.length === 0) return res.json({ profiles: [] });
+
+  const followingIds = follows.map((f) => f.followingId);
+  const [users, profiles, followerCounts] = await Promise.all([
+    User.find({ _id: { $in: followingIds } }),
+    Profile.find({ userId: { $in: followingIds } }),
+    Follow.aggregate([
+      { $match: { followingId: { $in: followingIds } } },
+      { $group: { _id: '$followingId', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const usernameByUser = {};
+  for (const u of users) usernameByUser[u.id] = u.username;
+  const profileByUser = {};
+  for (const p of profiles) profileByUser[p.userId.toString()] = p.toJSON();
+  const countByUser = {};
+  for (const c of followerCounts) countByUser[c._id.toString()] = c.count;
+
+  const profilesResult = follows
+    .map((f) => f.followingId.toString())
+    .filter((id) => profileByUser[id])
+    .map((id) => ({
+      userId: id,
+      username: usernameByUser[id] || '',
+      displayName: profileByUser[id].displayName,
+      profileImage: profileByUser[id].profileImage,
+      city: profileByUser[id].city,
+      country: profileByUser[id].country,
+      followersCount: countByUser[id] || 0,
+      isFollowing: true,
+    }));
+
+  return res.json({ profiles: profilesResult });
+};
+
+module.exports = { followUser, unfollowUser, getMyFollowing };
