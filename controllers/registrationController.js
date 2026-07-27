@@ -639,6 +639,63 @@ const notifyRegistrantsOfUpdate = async (targetType, targetId, eventId, targetNa
 // Every session/pack the user has ever signed up for (any status), each
 // paired with the full enriched event it belongs to so the frontend can
 // navigate straight into EventDetailScreen without a second fetch.
+// Every pending pack signup request across every event the user owns, so a
+// Pro organizer can review them in one place instead of pack-by-pack.
+const getMyPendingRequests = async (req, res) => {
+  const myEvents = await Event.find({ ownerUserId: req.userId });
+  const eventIds = myEvents.map((e) => e._id);
+  if (eventIds.length === 0) return res.json({ requests: [] });
+
+  const registrations = await Registration.find({
+    eventId: { $in: eventIds },
+    targetType: 'pack',
+    status: 'pending',
+  }).sort({ createdAt: -1 });
+  if (registrations.length === 0) return res.json({ requests: [] });
+
+  const packIds = [...new Set(registrations.map((r) => r.targetId.toString()))];
+  const userIds = [...new Set(registrations.map((r) => r.userId.toString()))];
+
+  const [packs, users, profiles] = await Promise.all([
+    Pack.find({ _id: { $in: packIds } }),
+    User.find({ _id: { $in: userIds } }),
+    Profile.find({ userId: { $in: userIds } }),
+  ]);
+
+  const eventById = {};
+  for (const e of myEvents) eventById[e.id] = e;
+  const packById = {};
+  for (const p of packs) packById[p.id] = p;
+  const usernameByUser = {};
+  for (const u of users) usernameByUser[u.id] = u.username;
+  const profileByUser = {};
+  for (const p of profiles) profileByUser[p.userId.toString()] = p.toJSON();
+
+  const requests = registrations
+    .map((reg) => {
+      const event = eventById[reg.eventId.toString()];
+      const pack = packById[reg.targetId.toString()];
+      if (!event || !pack) return null;
+      const profile = profileByUser[reg.userId.toString()];
+      return {
+        id: reg.id,
+        eventId: event.id,
+        eventTitle: event.title,
+        eventCoverMediaUrl: event.coverMediaUrl,
+        packId: pack.id,
+        packName: pack.name,
+        userId: reg.userId.toString(),
+        username: usernameByUser[reg.userId.toString()] || '',
+        displayName: profile?.displayName || '',
+        profileImage: profile?.profileImage || null,
+        createdAt: reg.createdAt,
+      };
+    })
+    .filter(Boolean);
+
+  return res.json({ requests });
+};
+
 const getMyReservations = async (req, res) => {
   const registrations = await Registration.find({ userId: req.userId }).sort({ createdAt: -1 });
   if (registrations.length === 0) return res.json({ reservations: [] });
@@ -729,4 +786,5 @@ module.exports = {
   payForPack,
   notifyRegistrantsOfUpdate,
   getMyReservations,
+  getMyPendingRequests,
 };

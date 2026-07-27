@@ -9,7 +9,12 @@ const {
   deleteAccount,
 } = require('../controllers/userController');
 const { followUser, unfollowUser, getMyFollowing } = require('../controllers/followController');
-const { getMyReservations } = require('../controllers/registrationController');
+const { getMyReservations, getMyPendingRequests } = require('../controllers/registrationController');
+const {
+  getMyCalendarNotes,
+  setCalendarNote,
+  deleteCalendarNote,
+} = require('../controllers/calendarNoteController');
 const userRateLimit = require('../middleware/userRateLimit');
 const passwordResetRateLimit = require('../middleware/passwordResetRateLimit');
 
@@ -55,7 +60,11 @@ router.post('/downgrade-to-free', userRateLimit, async (req, res) => {
 
 router.get('/me', getCurrentSession);
 router.get('/me/reservations', getMyReservations);
+router.get('/me/pending-requests', getMyPendingRequests);
 router.get('/me/following', getMyFollowing);
+router.get('/me/calendar-notes', getMyCalendarNotes);
+router.put('/me/calendar-notes/:date', setCalendarNote);
+router.delete('/me/calendar-notes/:date', deleteCalendarNote);
 router.patch('/me/username', userRateLimit, changeUsername);
 router.post('/me/request-email-change', passwordResetRateLimit, requestEmailChange);
 router.post('/me/confirm-email-change', passwordResetRateLimit, confirmEmailChange);
