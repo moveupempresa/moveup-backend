@@ -1,12 +1,76 @@
+const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const Follow = require('../models/Follow');
 const { sendEmailChangeCode } = require('../utils/mailer');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_REGEX = /^[A-Za-z0-9_.-]{3,30}$/;
 const CODE_TTL_MS = 10 * 60 * 1000;
+const SEARCH_LIMIT = 20;
 const generateCode = () => Math.floor(100000 + Math.random() * 900000).toString();
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Profiles whose username or display name contains the query, independent
+// of whether they've ever published an event - an Instagram-style people
+// search rather than an "events by this organizer" filter.
+const searchProfiles = async (req, res) => {
+  const query = (req.query.q || '').toString().trim();
+  if (query.length < 2) return res.json({ profiles: [] });
+
+  const regex = { $regex: escapeRegex(query), $options: 'i' };
+  const [usersByUsername, profilesByDisplayName] = await Promise.all([
+    User.find({ username: regex }),
+    Profile.find({ displayName: regex }),
+  ]);
+
+  const matchedIds = [
+    ...new Set([
+      ...usersByUsername.map((u) => u.id),
+      ...profilesByDisplayName.map((p) => p.userId.toString()),
+    ]),
+  ].slice(0, SEARCH_LIMIT);
+  if (matchedIds.length === 0) return res.json({ profiles: [] });
+
+  const objectIds = matchedIds.map((id) => new mongoose.Types.ObjectId(id));
+  const [users, profiles, followerCounts, viewerFollowing] = await Promise.all([
+    User.find({ _id: { $in: objectIds } }),
+    Profile.find({ userId: { $in: objectIds } }),
+    Follow.aggregate([
+      { $match: { followingId: { $in: objectIds } } },
+      { $group: { _id: '$followingId', count: { $sum: 1 } } },
+    ]),
+    Follow.find({ followerId: req.userId, followingId: { $in: objectIds } }),
+  ]);
+
+  const usernameByUser = {};
+  for (const u of users) usernameByUser[u.id] = u.username;
+  const profileByUser = {};
+  for (const p of profiles) profileByUser[p.userId.toString()] = p.toJSON();
+  const countByUser = {};
+  for (const c of followerCounts) countByUser[c._id.toString()] = c.count;
+  const followingSet = new Set(viewerFollowing.map((f) => f.followingId.toString()));
+
+  const results = matchedIds
+    .filter((id) => profileByUser[id])
+    .map((id) => ({
+      userId: id,
+      username: usernameByUser[id] || '',
+      displayName: profileByUser[id].displayName,
+      artisticName: profileByUser[id].artisticName,
+      bio: profileByUser[id].bio,
+      profileImage: profileByUser[id].profileImage,
+      city: profileByUser[id].city,
+      country: profileByUser[id].country,
+      experience: profileByUser[id].experience,
+      followersCount: countByUser[id] || 0,
+      isFollowing: followingSet.has(id),
+    }))
+    .sort((a, b) => a.username.localeCompare(b.username));
+
+  return res.json({ profiles: results });
+};
 
 const getCurrentSession = async (req, res) => {
   const [user, profile] = await Promise.all([
@@ -103,6 +167,7 @@ const deleteAccount = async (req, res) => {
 
 module.exports = {
   getCurrentSession,
+  searchProfiles,
   changeUsername,
   requestEmailChange,
   confirmEmailChange,

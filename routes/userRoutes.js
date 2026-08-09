@@ -3,6 +3,7 @@ const User = require('../models/User');
 const requireAuth = require('../middleware/requireAuth');
 const {
   getCurrentSession,
+  searchProfiles,
   changeUsername,
   requestEmailChange,
   confirmEmailChange,
@@ -58,6 +59,7 @@ router.post('/downgrade-to-free', userRateLimit, async (req, res) => {
   return res.status(200).json({ user: user.toJSON() });
 });
 
+router.get('/search', searchProfiles);
 router.get('/me', getCurrentSession);
 router.get('/me/reservations', getMyReservations);
 router.get('/me/pending-requests', getMyPendingRequests);
