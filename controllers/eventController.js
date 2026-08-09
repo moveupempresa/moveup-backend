@@ -172,11 +172,27 @@ const deleteEvent = async (req, res) => {
     return res.status(403).json({ message: 'No autorizado' });
   }
 
+  const affectedRegistrations = await Registration.find({
+    eventId,
+    status: { $in: ['confirmed', 'pending', 'awaiting_payment', 'waitlisted'] },
+  });
+  const affectedUserIds = [...new Set(affectedRegistrations.map((r) => r.userId.toString()))];
+
   await Session.deleteMany({ eventId });
   await Pack.deleteMany({ eventId });
   await Registration.deleteMany({ eventId });
   await event.deleteOne();
   deleteUploadedFile(event.coverMediaUrl);
+
+  if (affectedUserIds.length > 0) {
+    await Notification.insertMany(
+      affectedUserIds.map((userId) => ({
+        userId,
+        type: 'event_cancelled',
+        message: `El evento "${event.title}" ha sido cancelado`,
+      }))
+    );
+  }
 
   return res.status(200).json({ message: 'Evento eliminado' });
 };

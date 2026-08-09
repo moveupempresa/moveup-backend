@@ -14,6 +14,9 @@ const sessionSchema = new mongoose.Schema(
     accessUrl: { type: String, default: null, trim: true },
     capacity: { type: Number, default: null },
     isUnlimitedCapacity: { type: Boolean, default: false },
+    reminded2DaysSent: { type: Boolean, default: false },
+    reminded1DaySent: { type: Boolean, default: false },
+    reminded2HoursSent: { type: Boolean, default: false },
   },
   {
     timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },

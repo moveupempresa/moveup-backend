@@ -15,6 +15,18 @@ const NOTIFICATION_TYPES = [
   'pack_paid',
   'registration_revoked',
   'payment_required',
+  'registrant_cancelled',
+  'self_cancel_confirmed',
+  'capacity_full',
+  'spot_freed',
+  'event_cancelled',
+  'saved_event_capacity_low',
+  'saved_event_capacity_full',
+  'saved_event_spot_freed',
+  'event_reminder_organizer_day',
+  'event_reminder_organizer_hours',
+  'event_reminder_student',
+  'saved_event_reminder',
 ];
 
 const TARGET_TYPES = ['session', 'pack'];

@@ -5,7 +5,26 @@ const Registration = require('../models/Registration');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const SavedEvent = require('../models/SavedEvent');
 const { attachSessionsAndPacks } = require('./eventController');
+
+// Notifies everyone who bookmarked this event (Descubrimiento > Eventos
+// guardados), excluding anyone already notified through another channel.
+const notifySavedEventWatchers = async (eventId, type, message, excludeUserIds = []) => {
+  const excluded = new Set(excludeUserIds.map(String));
+  const saves = await SavedEvent.find({ eventId });
+  const recipients = saves.filter((s) => !excluded.has(s.userId.toString()));
+  if (recipients.length === 0) return;
+
+  await Notification.insertMany(
+    recipients.map((s) => ({
+      userId: s.userId,
+      type,
+      message,
+      relatedEventId: eventId,
+    }))
+  );
+};
 
 const TARGET_CONFIG = {
   session: {
@@ -231,16 +250,58 @@ const createHandlers = (targetType) => {
           relatedTargetId: targetId,
         });
       }
+
+      if (!isUnlimited(target)) {
+        const updatedCount = await countConfirmed(targetType, targetId);
+        const remaining = target.capacity - updatedCount;
+        if (remaining === 0) {
+          await Notification.create({
+            userId: event.ownerUserId,
+            type: 'capacity_full',
+            message: `El aforo de ${label(target)} está completo`,
+            relatedEventId: target.eventId,
+            relatedTargetType: targetType,
+            relatedTargetId: targetId,
+          });
+          await notifySavedEventWatchers(
+            target.eventId,
+            'saved_event_capacity_full',
+            `El aforo de ${label(target)} está completo`
+          );
+        } else if (remaining === 5) {
+          await notifySavedEventWatchers(
+            target.eventId,
+            'saved_event_capacity_low',
+            `Quedan 5 plazas en ${label(target)}`
+          );
+        }
+      }
     }
 
     const confirmedCount = await countConfirmed(targetType, targetId);
     return res.status(200).json({ status: 'confirmed', confirmedCount });
   };
 
-  const freeUpSpot = async (target) => {
+  const freeUpSpot = async (target, ownerUserId) => {
     if (isUnlimited(target)) return;
     const confirmedCount = await countConfirmed(targetType, target._id);
     if (confirmedCount >= target.capacity) return;
+
+    if (confirmedCount === target.capacity - 1) {
+      await Notification.create({
+        userId: ownerUserId,
+        type: 'spot_freed',
+        message: `Se ha liberado una plaza en ${label(target)}`,
+        relatedEventId: target.eventId,
+        relatedTargetType: targetType,
+        relatedTargetId: target._id,
+      });
+      await notifySavedEventWatchers(
+        target.eventId,
+        'saved_event_spot_freed',
+        `Se ha liberado una plaza en ${label(target)}`
+      );
+    }
 
     const waitlisted = await Registration.find({
       targetType,
@@ -265,7 +326,7 @@ const createHandlers = (targetType) => {
   const cancelSignUp = async (req, res) => {
     const loaded = await loadTarget(req, res);
     if (!loaded) return;
-    const { target } = loaded;
+    const { event, target } = loaded;
     const targetId = target._id;
 
     const deleted = await Registration.findOneAndDelete({
@@ -284,7 +345,28 @@ const createHandlers = (targetType) => {
       });
     }
 
-    if (deleted) await freeUpSpot(target);
+    if (deleted) {
+      await freeUpSpot(target, event.ownerUserId);
+
+      await Notification.create({
+        userId: req.userId,
+        type: 'self_cancel_confirmed',
+        message: `Has cancelado tu reserva en ${label(target)}`,
+        relatedEventId: target.eventId,
+      });
+      if (event.ownerUserId.toString() !== req.userId) {
+        const canceller = await User.findById(req.userId);
+        await Notification.create({
+          userId: event.ownerUserId,
+          type: 'registrant_cancelled',
+          message: `${canceller.username} ha cancelado su reserva en ${label(target)}`,
+          relatedUserId: req.userId,
+          relatedEventId: target.eventId,
+          relatedTargetType: targetType,
+          relatedTargetId: targetId,
+        });
+      }
+    }
 
     const confirmedCount = await countConfirmed(targetType, targetId);
     return res.status(200).json({ status: null, confirmedCount });
@@ -419,7 +501,7 @@ const createHandlers = (targetType) => {
     });
     if (!deleted) return res.status(404).json({ message: 'Inscripción no encontrada' });
 
-    await freeUpSpot(target);
+    await freeUpSpot(target, event.ownerUserId);
 
     await Notification.create({
       userId,
@@ -787,4 +869,5 @@ module.exports = {
   notifyRegistrantsOfUpdate,
   getMyReservations,
   getMyPendingRequests,
+  notifySavedEventWatchers,
 };

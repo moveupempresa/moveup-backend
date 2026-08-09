@@ -9,6 +9,8 @@ const userRoutes = require('./routes/userRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const appRoutes = require('./routes/appRoutes');
+const { startReminderJob } = require('./utils/reminderJob');
 
 const app = express();
 const DB = process.env.MONGODB_URI;
@@ -21,6 +23,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/app', appRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Not found' });
@@ -36,6 +39,7 @@ const PORT = process.env.PORT || 3000;
 
 mongoose.connect(DB).then(()=>{
     console.log('MongoDB Connected');
+    startReminderJob();
 });
 
 //start the server and listen on the specified port
