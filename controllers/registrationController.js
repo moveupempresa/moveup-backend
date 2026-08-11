@@ -6,6 +6,7 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const SavedEvent = require('../models/SavedEvent');
+const CancelledReservation = require('../models/CancelledReservation');
 const { attachSessionsAndPacks } = require('./eventController');
 
 // Notifies everyone who bookmarked this event (Descubrimiento > Eventos
@@ -77,6 +78,28 @@ const createHandlers = (targetType) => {
 
   // Packs have no capacity of their own - only the sessions they cover do.
   const isUnlimited = (target) => targetType === 'pack' || target.isUnlimitedCapacity;
+
+  // A pack has no date of its own - use the earliest of the sessions it covers.
+  const resolveDisplayDate = async (target) => {
+    if (targetType === 'session') return target.startDatetime;
+    const firstSession = await Session.findOne({ _id: { $in: target.sessionIds } }).sort({
+      startDatetime: 1,
+    });
+    return firstSession ? firstSession.startDatetime : null;
+  };
+
+  const logCancellation = async ({ userId, event, target, cancelledBy }) => {
+    await CancelledReservation.create({
+      userId,
+      eventId: event._id,
+      eventTitle: event.title,
+      eventCoverMediaUrl: event.coverMediaUrl,
+      targetType,
+      targetName: target.name,
+      sessionDate: await resolveDisplayDate(target),
+      cancelledBy,
+    });
+  };
 
   const resolveSelectedSessions = (req, target) => {
     if (targetType !== 'pack' || target.packType !== 'customizable') {
@@ -347,6 +370,7 @@ const createHandlers = (targetType) => {
 
     if (deleted) {
       await freeUpSpot(target, event.ownerUserId);
+      await logCancellation({ userId: req.userId, event, target, cancelledBy: 'self' });
 
       await Notification.create({
         userId: req.userId,
@@ -502,6 +526,7 @@ const createHandlers = (targetType) => {
     if (!deleted) return res.status(404).json({ message: 'Inscripción no encontrada' });
 
     await freeUpSpot(target, event.ownerUserId);
+    await logCancellation({ userId, event, target, cancelledBy: 'organizer' });
 
     await Notification.create({
       userId,
@@ -849,6 +874,13 @@ const getMyReservations = async (req, res) => {
   return res.json({ reservations });
 };
 
+const getMyCancelledReservations = async (req, res) => {
+  const cancellations = await CancelledReservation.find({ userId: req.userId }).sort({
+    cancelledAt: -1,
+  });
+  return res.json({ cancellations: cancellations.map((c) => c.toJSON()) });
+};
+
 module.exports = {
   signUpForSession: sessionHandlers.signUp,
   cancelSessionSignUp: sessionHandlers.cancelSignUp,
@@ -868,6 +900,7 @@ module.exports = {
   payForPack,
   notifyRegistrantsOfUpdate,
   getMyReservations,
+  getMyCancelledReservations,
   getMyPendingRequests,
   notifySavedEventWatchers,
 };

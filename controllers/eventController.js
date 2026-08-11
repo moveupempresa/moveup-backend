@@ -8,6 +8,7 @@ const SavedEvent = require('../models/SavedEvent');
 const Follow = require('../models/Follow');
 const Notification = require('../models/Notification');
 const Registration = require('../models/Registration');
+const CancelledReservation = require('../models/CancelledReservation');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
 const { geocodeLocation } = require('../utils/geocode');
@@ -178,11 +179,49 @@ const deleteEvent = async (req, res) => {
   });
   const affectedUserIds = [...new Set(affectedRegistrations.map((r) => r.userId.toString()))];
 
+  const [sessions, packs] = await Promise.all([
+    Session.find({ eventId }),
+    Pack.find({ eventId }),
+  ]);
+  const sessionById = {};
+  for (const s of sessions) sessionById[s.id] = s;
+  const packById = {};
+  for (const p of packs) packById[p.id] = p;
+
+  // A pack has no date of its own - use the earliest of the sessions it covers.
+  const packDate = (pack) => {
+    const dates = pack.sessionIds
+      .map((id) => sessionById[id.toString()]?.startDatetime)
+      .filter(Boolean);
+    return dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : null;
+  };
+
+  const cancelledLogs = affectedRegistrations
+    .map((r) => {
+      const targetId = r.targetId.toString();
+      const isSession = r.targetType === 'session';
+      const target = isSession ? sessionById[targetId] : packById[targetId];
+      if (!target) return null;
+      return {
+        userId: r.userId,
+        eventId: event._id,
+        eventTitle: event.title,
+        eventCoverMediaUrl: event.coverMediaUrl,
+        targetType: r.targetType,
+        targetName: target.name,
+        sessionDate: isSession ? target.startDatetime : packDate(target),
+        cancelledBy: 'event_deleted',
+      };
+    })
+    .filter(Boolean);
+
   await Session.deleteMany({ eventId });
   await Pack.deleteMany({ eventId });
   await Registration.deleteMany({ eventId });
   await event.deleteOne();
   deleteUploadedFile(event.coverMediaUrl);
+
+  if (cancelledLogs.length > 0) await CancelledReservation.insertMany(cancelledLogs);
 
   if (affectedUserIds.length > 0) {
     await Notification.insertMany(

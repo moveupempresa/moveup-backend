@@ -15,7 +15,11 @@ const {
   getMyFollowing,
   getMyFollowers,
 } = require('../controllers/followController');
-const { getMyReservations, getMyPendingRequests } = require('../controllers/registrationController');
+const {
+  getMyReservations,
+  getMyCancelledReservations,
+  getMyPendingRequests,
+} = require('../controllers/registrationController');
 const {
   getMyCalendarNotes,
   setCalendarNote,
@@ -67,6 +71,7 @@ router.post('/downgrade-to-free', userRateLimit, async (req, res) => {
 router.get('/search', searchProfiles);
 router.get('/me', getCurrentSession);
 router.get('/me/reservations', getMyReservations);
+router.get('/me/cancelled-reservations', getMyCancelledReservations);
 router.get('/me/pending-requests', getMyPendingRequests);
 router.get('/me/following', getMyFollowing);
 router.get('/me/followers', getMyFollowers);
