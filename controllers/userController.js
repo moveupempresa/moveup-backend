@@ -7,6 +7,7 @@ const { sendEmailChangeCode } = require('../utils/mailer');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const USERNAME_REGEX = /^[A-Za-z0-9_.-]{3,30}$/;
+const PHONE_REGEX = /^[+]?[\d\s-]{6,20}$/;
 const CODE_TTL_MS = 10 * 60 * 1000;
 const SEARCH_LIMIT = 20;
 const generateCode = () => Math.floor(100000 + Math.random() * 900000).toString();
@@ -99,6 +100,22 @@ const changeUsername = async (req, res) => {
   return res.status(200).json({ user: user.toJSON() });
 };
 
+const changePhone = async (req, res) => {
+  const { phone } = req.body;
+
+  if (typeof phone !== 'string' || !PHONE_REGEX.test(phone.trim())) {
+    return res.status(400).json({ message: 'Ingresa un número de teléfono válido' });
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.userId,
+    { phone: phone.trim() },
+    { new: true, returnDocument: 'after', runValidators: true }
+  );
+  if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+  return res.status(200).json({ user: user.toJSON() });
+};
+
 const requestEmailChange = async (req, res) => {
   const { newEmail } = req.body;
 
@@ -169,6 +186,7 @@ module.exports = {
   getCurrentSession,
   searchProfiles,
   changeUsername,
+  changePhone,
   requestEmailChange,
   confirmEmailChange,
   deleteAccount,

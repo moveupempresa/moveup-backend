@@ -33,6 +33,11 @@ const userSchema = new mongoose.Schema(
       default: 'free',
       required: true,
     },
+    phone: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     billingAccountHolder: {
       type: String,
       select: false,

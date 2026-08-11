@@ -27,6 +27,7 @@ const NOTIFICATION_TYPES = [
   'event_reminder_organizer_hours',
   'event_reminder_student',
   'saved_event_reminder',
+  'phone_number_required',
 ];
 
 const TARGET_TYPES = ['session', 'pack'];
