@@ -9,7 +9,12 @@ const {
   confirmEmailChange,
   deleteAccount,
 } = require('../controllers/userController');
-const { followUser, unfollowUser, getMyFollowing } = require('../controllers/followController');
+const {
+  followUser,
+  unfollowUser,
+  getMyFollowing,
+  getMyFollowers,
+} = require('../controllers/followController');
 const { getMyReservations, getMyPendingRequests } = require('../controllers/registrationController');
 const {
   getMyCalendarNotes,
@@ -64,6 +69,7 @@ router.get('/me', getCurrentSession);
 router.get('/me/reservations', getMyReservations);
 router.get('/me/pending-requests', getMyPendingRequests);
 router.get('/me/following', getMyFollowing);
+router.get('/me/followers', getMyFollowers);
 router.get('/me/calendar-notes', getMyCalendarNotes);
 router.put('/me/calendar-notes/:date', setCalendarNote);
 router.delete('/me/calendar-notes/:date', deleteCalendarNote);
