@@ -100,6 +100,27 @@ const uploadProfileImage = async (req, res) => {
   return res.status(200).json({ profile: profile.toJSON() });
 };
 
+const uploadCv = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No se recibió ningún archivo' });
+  }
+
+  const profile = await Profile.findOne({ userId: req.userId });
+  if (!profile) {
+    deleteUploadedFile(`/uploads/${req.file.filename}`);
+    return res.status(404).json({ message: 'Perfil no encontrado' });
+  }
+
+  const previousCvUrl = profile.cvUrl;
+  profile.cvUrl = `/uploads/${req.file.filename}`;
+  await profile.save();
+  // A previous CV pasted as an external URL isn't a local file - deleting it
+  // is a harmless no-op in that case.
+  deleteUploadedFile(previousCvUrl);
+
+  return res.status(200).json({ profile: profile.toJSON() });
+};
+
 const GALLERY_LIMIT = 12;
 
 const addGalleryImage = async (req, res) => {
@@ -153,6 +174,7 @@ module.exports = {
   getUserProfile,
   updateMyProfile,
   uploadProfileImage,
+  uploadCv,
   addGalleryImage,
   removeGalleryImage,
 };
