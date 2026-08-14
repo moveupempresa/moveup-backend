@@ -18,7 +18,7 @@ const uploadCover = multer({
   storage,
   limits: { fileSize: MAX_SIZE },
   fileFilter: (req, file, cb) => {
-    const allowed = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
+    const allowed = file.fieldname === 'coverImage' ? ALLOWED_IMAGE_TYPES : ALLOWED_VIDEO_TYPES;
     if (!allowed.includes(file.mimetype)) {
       return cb(new Error('INVALID_FILE_TYPE'));
     }
@@ -26,11 +26,16 @@ const uploadCover = multer({
   },
 });
 
+// The cover is up to two files: an image and/or a video, uploaded as
+// separate named fields so each can be validated against its own type.
 const handleCoverUpload = (req, res, next) => {
-  uploadCover.single('cover')(req, res, (err) => {
+  uploadCover.fields([
+    { name: 'coverImage', maxCount: 1 },
+    { name: 'coverVideo', maxCount: 1 },
+  ])(req, res, (err) => {
     if (!err) return next();
     if (err.message === 'INVALID_FILE_TYPE') {
-      return res.status(400).json({ message: 'Solo se permiten imágenes (JPEG, PNG, WEBP) o videos (MP4, MOV, AVI)' });
+      return res.status(400).json({ message: 'La imagen debe ser JPEG, PNG o WEBP y el video MP4, MOV o AVI' });
     }
     if (err.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ message: 'El archivo no puede superar los 50MB' });

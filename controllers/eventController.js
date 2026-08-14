@@ -10,7 +10,6 @@ const Notification = require('../models/Notification');
 const Registration = require('../models/Registration');
 const CancelledReservation = require('../models/CancelledReservation');
 const { deleteUploadedFile } = require('../utils/fileUtils');
-const { ALLOWED_IMAGE_TYPES } = require('../middleware/uploadCover');
 const { geocodeLocation } = require('../utils/geocode');
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -36,7 +35,9 @@ const notifyFollowersOfNewEvent = async (event) => {
 };
 
 const createEvent = async (req, res) => {
-  if (!req.file) {
+  const coverImageFile = req.files?.coverImage?.[0];
+  const coverVideoFile = req.files?.coverVideo?.[0];
+  if (!coverImageFile && !coverVideoFile) {
     return res.status(400).json({ message: 'La portada del evento es requerida' });
   }
 
@@ -45,12 +46,13 @@ const createEvent = async (req, res) => {
   const style = JSON.parse(req.body.style || '[]');
 
   if (eventType === 'other' && !(customEventType || '').trim()) {
-    deleteUploadedFile(`/uploads/${req.file.filename}`);
+    if (coverImageFile) deleteUploadedFile(`/uploads/${coverImageFile.filename}`);
+    if (coverVideoFile) deleteUploadedFile(`/uploads/${coverVideoFile.filename}`);
     return res.status(400).json({ message: 'Indica de qué tipo de evento se trata' });
   }
 
-  const coverMediaUrl = `/uploads/${req.file.filename}`;
-  const coverMediaType = ALLOWED_IMAGE_TYPES.includes(req.file.mimetype) ? 'image' : 'video';
+  const coverImageUrl = coverImageFile ? `/uploads/${coverImageFile.filename}` : null;
+  const coverVideoUrl = coverVideoFile ? `/uploads/${coverVideoFile.filename}` : null;
 
   const location = await geocodeLocation(city, country);
 
@@ -67,13 +69,14 @@ const createEvent = async (req, res) => {
       country,
       location,
       reservationEnabled: reservationEnabled === 'true' || reservationEnabled === true,
-      coverMediaType,
-      coverMediaUrl,
+      coverImageUrl,
+      coverVideoUrl,
       status: status || 'draft',
       publishedAt: status === 'published' ? new Date() : null,
     });
   } catch (err) {
-    deleteUploadedFile(coverMediaUrl);
+    if (coverImageUrl) deleteUploadedFile(coverImageUrl);
+    if (coverVideoUrl) deleteUploadedFile(coverVideoUrl);
     if (err.name === 'ValidationError') {
       const message = Object.values(err.errors).map((e) => e.message).join(', ');
       return res.status(400).json({ message });
@@ -88,11 +91,14 @@ const createEvent = async (req, res) => {
 
 const updateEvent = async (req, res) => {
   const { eventId } = req.params;
+  const coverImageFile = req.files?.coverImage?.[0];
+  const coverVideoFile = req.files?.coverVideo?.[0];
 
   const event = await Event.findById(eventId);
   if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
   if (event.ownerUserId.toString() !== req.userId) {
-    if (req.file) deleteUploadedFile(`/uploads/${req.file.filename}`);
+    if (coverImageFile) deleteUploadedFile(`/uploads/${coverImageFile.filename}`);
+    if (coverVideoFile) deleteUploadedFile(`/uploads/${coverVideoFile.filename}`);
     return res.status(403).json({ message: 'No autorizado' });
   }
 
@@ -107,10 +113,13 @@ const updateEvent = async (req, res) => {
     visibility,
     reservationEnabled,
     status,
+    removeCoverImage,
+    removeCoverVideo,
   } = req.body;
 
   if (eventType === 'other' && !(customEventType || event.customEventType || '').trim()) {
-    if (req.file) deleteUploadedFile(`/uploads/${req.file.filename}`);
+    if (coverImageFile) deleteUploadedFile(`/uploads/${coverImageFile.filename}`);
+    if (coverVideoFile) deleteUploadedFile(`/uploads/${coverVideoFile.filename}`);
     return res.status(400).json({ message: 'Indica de qué tipo de evento se trata' });
   }
 
@@ -140,16 +149,24 @@ const updateEvent = async (req, res) => {
     event.status = status;
   }
 
-  const previousCoverMediaUrl = event.coverMediaUrl;
-  if (req.file) {
-    event.coverMediaUrl = `/uploads/${req.file.filename}`;
-    event.coverMediaType = ALLOWED_IMAGE_TYPES.includes(req.file.mimetype) ? 'image' : 'video';
+  const previousCoverImageUrl = event.coverImageUrl;
+  const previousCoverVideoUrl = event.coverVideoUrl;
+  if (coverImageFile) {
+    event.coverImageUrl = `/uploads/${coverImageFile.filename}`;
+  } else if (removeCoverImage === 'true' || removeCoverImage === true) {
+    event.coverImageUrl = null;
+  }
+  if (coverVideoFile) {
+    event.coverVideoUrl = `/uploads/${coverVideoFile.filename}`;
+  } else if (removeCoverVideo === 'true' || removeCoverVideo === true) {
+    event.coverVideoUrl = null;
   }
 
   try {
     await event.save();
   } catch (err) {
-    if (req.file) deleteUploadedFile(event.coverMediaUrl);
+    if (coverImageFile) deleteUploadedFile(`/uploads/${coverImageFile.filename}`);
+    if (coverVideoFile) deleteUploadedFile(`/uploads/${coverVideoFile.filename}`);
     if (err.name === 'ValidationError') {
       const message = Object.values(err.errors).map((e) => e.message).join(', ');
       return res.status(400).json({ message });
@@ -157,7 +174,10 @@ const updateEvent = async (req, res) => {
     throw err;
   }
 
-  if (req.file && previousCoverMediaUrl) deleteUploadedFile(previousCoverMediaUrl);
+  if (coverImageFile && previousCoverImageUrl) deleteUploadedFile(previousCoverImageUrl);
+  if (coverVideoFile && previousCoverVideoUrl) deleteUploadedFile(previousCoverVideoUrl);
+  if (removeCoverImage === 'true' && previousCoverImageUrl) deleteUploadedFile(previousCoverImageUrl);
+  if (removeCoverVideo === 'true' && previousCoverVideoUrl) deleteUploadedFile(previousCoverVideoUrl);
 
   if (isNewlyPublished) await notifyFollowersOfNewEvent(event);
 
@@ -206,7 +226,7 @@ const deleteEvent = async (req, res) => {
         userId: r.userId,
         eventId: event._id,
         eventTitle: event.title,
-        eventCoverMediaUrl: event.coverMediaUrl,
+        eventCoverMediaUrl: event.coverImageUrl || event.coverVideoUrl,
         targetType: r.targetType,
         targetName: target.name,
         sessionDate: isSession ? target.startDatetime : packDate(target),
@@ -219,7 +239,8 @@ const deleteEvent = async (req, res) => {
   await Pack.deleteMany({ eventId });
   await Registration.deleteMany({ eventId });
   await event.deleteOne();
-  deleteUploadedFile(event.coverMediaUrl);
+  deleteUploadedFile(event.coverImageUrl);
+  deleteUploadedFile(event.coverVideoUrl);
 
   if (cancelledLogs.length > 0) await CancelledReservation.insertMany(cancelledLogs);
 

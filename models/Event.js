@@ -7,7 +7,6 @@ const EVENT_TYPES = [
 const LOCATION_TYPES = ['presential', 'online'];
 const VISIBILITIES = ['public', 'private'];
 const STATUSES = ['draft', 'published', 'unpublished', 'cancelled', 'archived'];
-const COVER_MEDIA_TYPES = ['image', 'video'];
 
 const eventSchema = new mongoose.Schema(
   {
@@ -40,8 +39,10 @@ const eventSchema = new mongoose.Schema(
     locationType: { type: String, enum: LOCATION_TYPES, default: 'presential' },
     visibility: { type: String, enum: VISIBILITIES, default: 'public' },
     reservationEnabled: { type: Boolean, default: false },
-    coverMediaType: { type: String, enum: COVER_MEDIA_TYPES, required: true },
-    coverMediaUrl: { type: String, required: true },
+    // The cover is a small carousel: an image and/or a video, at least one
+    // of the two required.
+    coverImageUrl: { type: String, default: null },
+    coverVideoUrl: { type: String, default: null },
     status: { type: String, enum: STATUSES, required: true, default: 'draft' },
     publishedAt: { type: Date, default: null },
   },
@@ -60,6 +61,10 @@ const eventSchema = new mongoose.Schema(
   }
 );
 
+eventSchema.path('coverImageUrl').validate(function validateCover() {
+  return Boolean(this.coverImageUrl || this.coverVideoUrl);
+}, 'Añade al menos una imagen o un video de portada');
+
 const Event = mongoose.model('Event', eventSchema);
 
 module.exports = Event;
@@ -67,4 +72,3 @@ module.exports.EVENT_TYPES = EVENT_TYPES;
 module.exports.LOCATION_TYPES = LOCATION_TYPES;
 module.exports.VISIBILITIES = VISIBILITIES;
 module.exports.STATUSES = STATUSES;
-module.exports.COVER_MEDIA_TYPES = COVER_MEDIA_TYPES;
