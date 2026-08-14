@@ -260,10 +260,17 @@ const attachSessionsAndPacks = async (events, viewerId) => {
   for (const pack of packs) packById[pack._id.toString()] = pack;
 
   const confirmedCountByTarget = {};
+  const pendingCountByTarget = {};
   const viewerStatusByTarget = {};
   const viewerSelectedSessionsByTarget = {};
   for (const reg of registrations) {
     const key = reg.targetId.toString();
+    // Only packs ever reach 'pending' (manual-approval sessions don't
+    // exist), so this is effectively a pack-only count - lets the organizer
+    // spot packs with requests awaiting their review.
+    if (reg.status === 'pending') {
+      pendingCountByTarget[key] = (pendingCountByTarget[key] || 0) + 1;
+    }
     if (reg.status === 'confirmed') {
       confirmedCountByTarget[key] = (confirmedCountByTarget[key] || 0) + 1;
       // A confirmed pack registration also occupies a spot in whichever
@@ -289,6 +296,7 @@ const attachSessionsAndPacks = async (events, viewerId) => {
 
   const attachRegistrationInfo = (json) => {
     json.confirmedCount = confirmedCountByTarget[json.id] || 0;
+    json.pendingRequestsCount = pendingCountByTarget[json.id] || 0;
     json.isSignedUp = viewerStatusByTarget[json.id] === 'confirmed';
     json.isWaitlisted = viewerStatusByTarget[json.id] === 'waitlisted';
     json.isPending = viewerStatusByTarget[json.id] === 'pending';
