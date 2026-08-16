@@ -625,9 +625,9 @@ const setPackPaymentStatus = async (req, res) => {
 
   const pack = await Pack.findOne({ _id: packId, eventId });
   if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
-  if (pack.paymentType !== 'offline') {
+  if (pack.paymentType === 'online') {
     return res.status(400).json({
-      message: 'El estado de pago de este pack solo se puede marcar manualmente si el pago es en efectivo',
+      message: 'El estado de pago de este pack solo se puede marcar manualmente si el pago no es online',
     });
   }
 

@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const PAYMENT_TYPES = ['online', 'offline', 'free'];
+const PAYMENT_TYPES = ['bizum', 'paypal', 'offline', 'online'];
 const PACK_TYPES = ['fixed', 'customizable'];
 const APPROVAL_MODES = ['automatic', 'manual'];
 
@@ -15,6 +15,9 @@ const packSchema = new mongoose.Schema(
     description: { type: String, default: null, trim: true },
     price: { type: mongoose.Schema.Types.Decimal128, required: true },
     paymentType: { type: String, enum: PAYMENT_TYPES, required: true },
+    // Where to send Bizum/PayPal payment (phone number, PayPal.me link...).
+    // Not used for offline (cash) or online (in-app) packs.
+    paymentDetails: { type: String, default: null, trim: true, maxlength: 300 },
     packType: { type: String, enum: PACK_TYPES, required: true },
     approvalMode: { type: String, enum: APPROVAL_MODES, required: true },
     maxSelectableSessions: { type: Number, default: null },

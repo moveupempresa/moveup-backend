@@ -18,6 +18,7 @@ const createPack = async (req, res) => {
     description,
     price,
     paymentType,
+    paymentDetails,
     packType,
     approvalMode,
     maxSelectableSessions,
@@ -35,6 +36,10 @@ const createPack = async (req, res) => {
     }
   }
 
+  if (['bizum', 'paypal'].includes(paymentType) && !(paymentDetails || '').trim()) {
+    return res.status(400).json({ message: 'Indica dónde deben enviar el pago' });
+  }
+
   let pack;
   try {
     pack = await Pack.create({
@@ -43,6 +48,7 @@ const createPack = async (req, res) => {
       description: description || null,
       price,
       paymentType,
+      paymentDetails: paymentDetails || null,
       packType,
       approvalMode,
       maxSelectableSessions: maxSelectableSessions != null ? Number(maxSelectableSessions) : null,
@@ -86,6 +92,7 @@ const updatePack = async (req, res) => {
     description,
     price,
     paymentType,
+    paymentDetails,
     packType,
     approvalMode,
     maxSelectableSessions,
@@ -109,10 +116,15 @@ const updatePack = async (req, res) => {
   if (description !== undefined) pack.description = description || null;
   if (price !== undefined) pack.price = price;
   if (paymentType !== undefined) pack.paymentType = paymentType;
+  if (paymentDetails !== undefined) pack.paymentDetails = paymentDetails || null;
   if (packType !== undefined) pack.packType = packType;
   if (approvalMode !== undefined) pack.approvalMode = approvalMode;
   if (maxSelectableSessions !== undefined) {
     pack.maxSelectableSessions = maxSelectableSessions != null ? Number(maxSelectableSessions) : null;
+  }
+
+  if (['bizum', 'paypal'].includes(pack.paymentType) && !(pack.paymentDetails || '').trim()) {
+    return res.status(400).json({ message: 'Indica dónde deben enviar el pago' });
   }
 
   try {
