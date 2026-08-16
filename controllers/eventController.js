@@ -37,15 +37,18 @@ const notifyFollowersOfNewEvent = async (event) => {
 const createEvent = async (req, res) => {
   const coverImageFile = req.files?.coverImage?.[0];
   const coverVideoFile = req.files?.coverVideo?.[0];
-  if (!coverImageFile && !coverVideoFile) {
-    return res.status(400).json({ message: 'La portada del evento es requerida' });
-  }
 
   const { title, description, city, country, reservationEnabled, status, eventType, customEventType } =
     req.body;
   const style = JSON.parse(req.body.style || '[]');
+  // A draft only needs a title - everything else can be filled in later.
+  const isDraft = (status || 'draft') === 'draft';
 
-  if (eventType === 'other' && !(customEventType || '').trim()) {
+  if (!isDraft && !coverImageFile && !coverVideoFile) {
+    return res.status(400).json({ message: 'La portada del evento es requerida' });
+  }
+
+  if (!isDraft && eventType === 'other' && !(customEventType || '').trim()) {
     if (coverImageFile) deleteUploadedFile(`/uploads/${coverImageFile.filename}`);
     if (coverVideoFile) deleteUploadedFile(`/uploads/${coverVideoFile.filename}`);
     return res.status(400).json({ message: 'Indica de qué tipo de evento se trata' });
@@ -61,12 +64,12 @@ const createEvent = async (req, res) => {
     event = await Event.create({
       ownerUserId: req.userId,
       title,
-      description,
+      description: description || '',
       style,
       eventType: eventType || undefined,
-      customEventType: eventType === 'other' ? customEventType.trim() : null,
-      city,
-      country,
+      customEventType: eventType === 'other' ? (customEventType || '').trim() : null,
+      city: city || '',
+      country: country || '',
       location,
       reservationEnabled: reservationEnabled === 'true' || reservationEnabled === true,
       coverImageUrl,
@@ -117,7 +120,10 @@ const updateEvent = async (req, res) => {
     removeCoverVideo,
   } = req.body;
 
-  if (eventType === 'other' && !(customEventType || event.customEventType || '').trim()) {
+  // A draft only needs a title - everything else can be filled in later.
+  const isDraft = (status !== undefined ? status : event.status) === 'draft';
+
+  if (!isDraft && eventType === 'other' && !(customEventType || event.customEventType || '').trim()) {
     if (coverImageFile) deleteUploadedFile(`/uploads/${coverImageFile.filename}`);
     if (coverVideoFile) deleteUploadedFile(`/uploads/${coverVideoFile.filename}`);
     return res.status(400).json({ message: 'Indica de qué tipo de evento se trata' });
