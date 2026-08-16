@@ -9,6 +9,12 @@ const SavedEvent = require('../models/SavedEvent');
 const CancelledReservation = require('../models/CancelledReservation');
 const { attachSessionsAndPacks } = require('./eventController');
 
+// online/bizum/paypal all require the attendee to actively "pay" (confirm
+// via the app's payment flow) before their spot is confirmed. Efectivo is
+// the only method the organizer confirms manually, since it's the only one
+// paid in person rather than through some app/transfer the attendee acts on.
+const SELF_PAY_TYPES = ['online', 'bizum', 'paypal'];
+
 // Notifies everyone who bookmarked this event (Descubrimiento > Eventos
 // guardados), excluding anyone already notified through another channel.
 const notifySavedEventWatchers = async (eventId, type, message, excludeUserIds = []) => {
@@ -143,7 +149,7 @@ const createHandlers = (targetType) => {
     const { event, target } = loaded;
     const targetId = target._id;
     const requiresApproval = targetType === 'pack' && target.approvalMode === 'manual';
-    const requiresPayment = targetType === 'pack' && target.paymentType === 'online';
+    const requiresPayment = targetType === 'pack' && SELF_PAY_TYPES.includes(target.paymentType);
 
     if (!isUnlimited(target)) {
       const confirmedCount = await countConfirmed(targetType, targetId);
@@ -562,7 +568,7 @@ const approvePackRequest = async (req, res) => {
   const registration = await Registration.findOne({ userId, targetType: 'pack', targetId: packId, status: 'pending' });
   if (!registration) return res.status(404).json({ message: 'Solicitud no encontrada' });
 
-  const requiresPayment = pack.paymentType === 'online';
+  const requiresPayment = SELF_PAY_TYPES.includes(pack.paymentType);
   registration.status = requiresPayment ? 'awaiting_payment' : 'confirmed';
   await registration.save();
 
@@ -625,9 +631,9 @@ const setPackPaymentStatus = async (req, res) => {
 
   const pack = await Pack.findOne({ _id: packId, eventId });
   if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
-  if (pack.paymentType === 'online') {
+  if (pack.paymentType !== 'offline') {
     return res.status(400).json({
-      message: 'El estado de pago de este pack solo se puede marcar manualmente si el pago no es online',
+      message: 'El estado de pago de este pack solo se puede marcar manualmente si el pago es en efectivo',
     });
   }
 
