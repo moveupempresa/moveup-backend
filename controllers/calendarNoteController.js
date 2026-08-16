@@ -37,26 +37,52 @@ const setCalendarNote = async (req, res) => {
     }
     const note = await CalendarNote.findOneAndUpdate(
       { userId: req.userId, date, hour },
-      { text: text.trim(), title: null, address: null, endHour: null },
+      {
+        text: text.trim(),
+        title: null,
+        address: null,
+        startMinute: null,
+        endHour: null,
+        endMinute: null,
+      },
       { new: true, upsert: true, runValidators: true }
     );
     return res.status(200).json({ note: note.toJSON() });
   }
 
   const { title, address } = req.body;
+  const startMinute = req.body.startMinute === undefined ? 0 : Number(req.body.startMinute);
   const endHour = Number(req.body.endHour);
+  const endMinute = req.body.endMinute === undefined ? 0 : Number(req.body.endMinute);
+
   if (typeof title !== 'string' || !title.trim()) {
     return res.status(400).json({ message: 'Añade un título' });
   }
-  if (!Number.isInteger(endHour) || endHour <= hour || endHour > 24) {
+  if (!Number.isInteger(startMinute) || startMinute < 0 || startMinute > 59) {
+    return res.status(400).json({ message: 'Minuto de inicio inválido' });
+  }
+  if (!Number.isInteger(endHour) || endHour < 1 || endHour > 24) {
     return res.status(400).json({ message: 'Hora de fin inválida' });
+  }
+  if (
+    !Number.isInteger(endMinute) ||
+    endMinute < 0 ||
+    endMinute > 59 ||
+    (endHour === 24 && endMinute !== 0)
+  ) {
+    return res.status(400).json({ message: 'Minuto de fin inválido' });
+  }
+  if (endHour * 60 + endMinute <= hour * 60 + startMinute) {
+    return res.status(400).json({ message: 'La hora de fin debe ser posterior al inicio' });
   }
   const note = await CalendarNote.findOneAndUpdate(
     { userId: req.userId, date, hour },
     {
       title: title.trim(),
       address: typeof address === 'string' && address.trim() ? address.trim() : null,
+      startMinute,
       endHour,
+      endMinute,
       text: '',
     },
     { new: true, upsert: true, runValidators: true }

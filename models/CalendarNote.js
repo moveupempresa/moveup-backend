@@ -19,7 +19,11 @@ const calendarNoteSchema = new mongoose.Schema(
     text: { type: String, trim: true, maxlength: 1000, default: '' },
     title: { type: String, trim: true, maxlength: 200, default: null },
     address: { type: String, trim: true, maxlength: 300, default: null },
+    // Minute offset within `hour` the event actually starts at (e.g. hour=9,
+    // startMinute=45 -> 09:45).
+    startMinute: { type: Number, min: 0, max: 59, default: null },
     endHour: { type: Number, min: 1, max: 24, default: null },
+    endMinute: { type: Number, min: 0, max: 59, default: null },
   },
   {
     timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
