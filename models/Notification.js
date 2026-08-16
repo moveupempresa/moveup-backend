@@ -56,6 +56,10 @@ const notificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
+    // Snapshot of the organizer's phone at the time an event_cancelled
+    // notification was created, so the attendee can reach out even if the
+    // event was deleted or the organizer later changes their number.
+    organizerPhone: { type: String, default: null },
     read: { type: Boolean, default: false },
   },
   {

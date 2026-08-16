@@ -34,6 +34,24 @@ const notifyFollowersOfNewEvent = async (event) => {
   );
 };
 
+// Notifies everyone with an active registration that the event was
+// cancelled/deleted, including a snapshot of the organizer's phone number
+// (as of right now) so the attendee can reach out - relevant even if the
+// event is about to be deleted or the organizer later changes their number.
+const notifyEventCancelled = async (event, userIds, { linkEvent = false } = {}) => {
+  if (userIds.length === 0) return;
+  const owner = await User.findById(event.ownerUserId);
+  await Notification.insertMany(
+    userIds.map((userId) => ({
+      userId,
+      type: 'event_cancelled',
+      message: `El evento "${event.title}" ha sido cancelado`,
+      relatedEventId: linkEvent ? event._id : null,
+      organizerPhone: owner?.phone || null,
+    }))
+  );
+};
+
 const createEvent = async (req, res) => {
   const coverImageFile = req.files?.coverImage?.[0];
   const coverVideoFile = req.files?.coverVideo?.[0];
@@ -150,6 +168,7 @@ const updateEvent = async (req, res) => {
   }
   if (req.body.style !== undefined) event.style = JSON.parse(req.body.style || '[]');
   const isNewlyPublished = status === 'published' && event.status !== 'published';
+  const isNewlyCancelled = status === 'cancelled' && event.status !== 'cancelled';
   if (status !== undefined) {
     if (isNewlyPublished) event.publishedAt = new Date();
     event.status = status;
@@ -186,6 +205,14 @@ const updateEvent = async (req, res) => {
   if (removeCoverVideo === 'true' && previousCoverVideoUrl) deleteUploadedFile(previousCoverVideoUrl);
 
   if (isNewlyPublished) await notifyFollowersOfNewEvent(event);
+  if (isNewlyCancelled) {
+    const affectedRegistrations = await Registration.find({
+      eventId: event._id,
+      status: { $in: ['confirmed', 'pending', 'awaiting_payment', 'waitlisted'] },
+    });
+    const affectedUserIds = [...new Set(affectedRegistrations.map((r) => r.userId.toString()))];
+    await notifyEventCancelled(event, affectedUserIds, { linkEvent: true });
+  }
 
   return res.status(200).json({ event: event.toJSON() });
 };
@@ -250,15 +277,7 @@ const deleteEvent = async (req, res) => {
 
   if (cancelledLogs.length > 0) await CancelledReservation.insertMany(cancelledLogs);
 
-  if (affectedUserIds.length > 0) {
-    await Notification.insertMany(
-      affectedUserIds.map((userId) => ({
-        userId,
-        type: 'event_cancelled',
-        message: `El evento "${event.title}" ha sido cancelado`,
-      }))
-    );
-  }
+  await notifyEventCancelled(event, affectedUserIds);
 
   return res.status(200).json({ message: 'Evento eliminado' });
 };
