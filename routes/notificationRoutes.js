@@ -5,9 +5,11 @@ const userRateLimit = require('../middleware/userRateLimit');
 
 const router = express.Router();
 
-router.use(requireAuth, userRateLimit);
+router.use(requireAuth);
 
+// Fetching notifications happens frequently (badge polling) - only the
+// mutating action is rate limited.
 router.get('/', getMyNotifications);
-router.post('/mark-read', markAllAsRead);
+router.post('/mark-read', userRateLimit, markAllAsRead);
 
 module.exports = router;
