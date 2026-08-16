@@ -9,11 +9,12 @@ const SavedEvent = require('../models/SavedEvent');
 const CancelledReservation = require('../models/CancelledReservation');
 const { attachSessionsAndPacks } = require('./eventController');
 
-// online/bizum/paypal all require the attendee to actively "pay" (confirm
-// via the app's payment flow) before their spot is confirmed. Efectivo is
-// the only method the organizer confirms manually, since it's the only one
-// paid in person rather than through some app/transfer the attendee acts on.
-const SELF_PAY_TYPES = ['online', 'bizum', 'paypal'];
+// online/paypal require the attendee to actively "pay" (confirm via the
+// app's payment flow) before their spot is confirmed. Bizum and Efectivo
+// both confirm the spot immediately and rely on the organizer to manually
+// verify/accept the payment afterward, since neither has a gateway the app
+// can check against.
+const SELF_PAY_TYPES = ['online', 'paypal'];
 
 // Notifies everyone who bookmarked this event (Descubrimiento > Eventos
 // guardados), excluding anyone already notified through another channel.
@@ -631,9 +632,9 @@ const setPackPaymentStatus = async (req, res) => {
 
   const pack = await Pack.findOne({ _id: packId, eventId });
   if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
-  if (pack.paymentType !== 'offline') {
+  if (!['offline', 'bizum'].includes(pack.paymentType)) {
     return res.status(400).json({
-      message: 'El estado de pago de este pack solo se puede marcar manualmente si el pago es en efectivo',
+      message: 'El estado de pago de este pack solo se puede marcar manualmente si el pago es en efectivo o Bizum',
     });
   }
 
@@ -661,6 +662,25 @@ const payForPack = async (req, res) => {
     targetId: packId,
   });
   if (!registration) return res.status(404).json({ message: 'No estás inscrito en este pack' });
+
+  // Bizum has no gateway to verify against, so the attendee's "I've paid"
+  // tap just notifies the organizer to check their own Bizum and manually
+  // accept it (the same mark-as-paid toggle offline packs use), rather than
+  // self-confirming like online/PayPal do.
+  if (pack.paymentType === 'bizum') {
+    const payer = await User.findById(req.userId);
+    await Notification.create({
+      userId: event.ownerUserId,
+      type: 'bizum_payment_claimed',
+      message: `${payer.username} dice haber pagado por Bizum ${TARGET_CONFIG.pack.label(pack)}. Verifícalo y acepta el pago.`,
+      relatedUserId: req.userId,
+      relatedEventId: eventId,
+      relatedTargetType: 'pack',
+      relatedTargetId: packId,
+    });
+    return res.status(200).json({ notified: true });
+  }
+
   if (registration.status !== 'awaiting_payment') {
     return res.status(400).json({ message: 'No tienes un pago pendiente para este pack' });
   }

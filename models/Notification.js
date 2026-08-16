@@ -20,6 +20,7 @@ const NOTIFICATION_TYPES = [
   'capacity_full',
   'spot_freed',
   'event_cancelled',
+  'bizum_payment_claimed',
   'saved_event_capacity_low',
   'saved_event_capacity_full',
   'saved_event_spot_freed',

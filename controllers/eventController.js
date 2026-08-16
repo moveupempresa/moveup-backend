@@ -309,6 +309,7 @@ const attachSessionsAndPacks = async (events, viewerId) => {
   const pendingCountByTarget = {};
   const viewerStatusByTarget = {};
   const viewerSelectedSessionsByTarget = {};
+  const viewerHasPaidByTarget = {};
   for (const reg of registrations) {
     const key = reg.targetId.toString();
     // Only packs ever reach 'pending' (manual-approval sessions don't
@@ -337,6 +338,7 @@ const attachSessionsAndPacks = async (events, viewerId) => {
     if (viewerId && reg.userId.toString() === viewerId) {
       viewerStatusByTarget[key] = reg.status;
       viewerSelectedSessionsByTarget[key] = (reg.selectedSessionIds || []).map((id) => id.toString());
+      viewerHasPaidByTarget[key] = reg.hasPaid;
     }
   }
 
@@ -348,6 +350,7 @@ const attachSessionsAndPacks = async (events, viewerId) => {
     json.isPending = viewerStatusByTarget[json.id] === 'pending';
     json.isAwaitingPayment = viewerStatusByTarget[json.id] === 'awaiting_payment';
     json.mySelectedSessionIds = viewerSelectedSessionsByTarget[json.id] || [];
+    json.myHasPaid = viewerHasPaidByTarget[json.id] || false;
     return json;
   };
 
