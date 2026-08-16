@@ -20,20 +20,45 @@ const getMyCalendarNotes = async (req, res) => {
 
 const setCalendarNote = async (req, res) => {
   const { date } = req.params;
-  const { text } = req.body;
 
   if (!DATE_REGEX.test(date)) {
     return res.status(400).json({ message: 'Fecha inválida' });
   }
-  if (typeof text !== 'string' || !text.trim()) {
-    return res.status(400).json({ message: 'La nota no puede estar vacía' });
-  }
   const { hour, error } = parseHour(req.query.hour);
   if (error) return res.status(400).json({ message: error });
 
+  // A whole-day note (no hour) is freeform text; an hour-anchored note is a
+  // lightweight personal event instead, with a title, optional address, and
+  // the hour it ends at.
+  if (hour === null) {
+    const { text } = req.body;
+    if (typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ message: 'La nota no puede estar vacía' });
+    }
+    const note = await CalendarNote.findOneAndUpdate(
+      { userId: req.userId, date, hour },
+      { text: text.trim(), title: null, address: null, endHour: null },
+      { new: true, upsert: true, runValidators: true }
+    );
+    return res.status(200).json({ note: note.toJSON() });
+  }
+
+  const { title, address } = req.body;
+  const endHour = Number(req.body.endHour);
+  if (typeof title !== 'string' || !title.trim()) {
+    return res.status(400).json({ message: 'Añade un título' });
+  }
+  if (!Number.isInteger(endHour) || endHour <= hour || endHour > 24) {
+    return res.status(400).json({ message: 'Hora de fin inválida' });
+  }
   const note = await CalendarNote.findOneAndUpdate(
     { userId: req.userId, date, hour },
-    { text: text.trim() },
+    {
+      title: title.trim(),
+      address: typeof address === 'string' && address.trim() ? address.trim() : null,
+      endHour,
+      text: '',
+    },
     { new: true, upsert: true, runValidators: true }
   );
   return res.status(200).json({ note: note.toJSON() });

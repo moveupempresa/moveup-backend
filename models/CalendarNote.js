@@ -13,7 +13,13 @@ const calendarNoteSchema = new mongoose.Schema(
     // null means a whole-day note; 0-23 anchors it to an hour in the week
     // scheduler. Combined with date, this is what the unique index is on.
     hour: { type: Number, min: 0, max: 23, default: null },
-    text: { type: String, required: true, trim: true, maxlength: 1000 },
+    // Whole-day notes (hour === null) are freeform text. Hour-anchored notes
+    // are lightweight personal "event" blocks instead: a title, optional
+    // address, and the hour (exclusive) they end at.
+    text: { type: String, trim: true, maxlength: 1000, default: '' },
+    title: { type: String, trim: true, maxlength: 200, default: null },
+    address: { type: String, trim: true, maxlength: 300, default: null },
+    endHour: { type: Number, min: 1, max: 24, default: null },
   },
   {
     timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
