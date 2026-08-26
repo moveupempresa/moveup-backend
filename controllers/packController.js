@@ -19,6 +19,7 @@ const createPack = async (req, res) => {
     price,
     paymentType,
     paymentDetails,
+    bizumConcept,
     packType,
     approvalMode,
     maxSelectableSessions,
@@ -39,6 +40,9 @@ const createPack = async (req, res) => {
   if (['bizum', 'paypal'].includes(paymentType) && !(paymentDetails || '').trim()) {
     return res.status(400).json({ message: 'Indica dónde deben enviar el pago' });
   }
+  if (paymentType === 'bizum' && !(bizumConcept || '').trim()) {
+    return res.status(400).json({ message: 'Indica el concepto que deben poner en el Bizum' });
+  }
 
   let pack;
   try {
@@ -49,6 +53,7 @@ const createPack = async (req, res) => {
       price,
       paymentType,
       paymentDetails: paymentDetails || null,
+      bizumConcept: bizumConcept || null,
       packType,
       approvalMode,
       maxSelectableSessions: maxSelectableSessions != null ? Number(maxSelectableSessions) : null,
@@ -93,6 +98,7 @@ const updatePack = async (req, res) => {
     price,
     paymentType,
     paymentDetails,
+    bizumConcept,
     packType,
     approvalMode,
     maxSelectableSessions,
@@ -117,6 +123,7 @@ const updatePack = async (req, res) => {
   if (price !== undefined) pack.price = price;
   if (paymentType !== undefined) pack.paymentType = paymentType;
   if (paymentDetails !== undefined) pack.paymentDetails = paymentDetails || null;
+  if (bizumConcept !== undefined) pack.bizumConcept = bizumConcept || null;
   if (packType !== undefined) pack.packType = packType;
   if (approvalMode !== undefined) pack.approvalMode = approvalMode;
   if (maxSelectableSessions !== undefined) {
@@ -125,6 +132,9 @@ const updatePack = async (req, res) => {
 
   if (['bizum', 'paypal'].includes(pack.paymentType) && !(pack.paymentDetails || '').trim()) {
     return res.status(400).json({ message: 'Indica dónde deben enviar el pago' });
+  }
+  if (pack.paymentType === 'bizum' && !(pack.bizumConcept || '').trim()) {
+    return res.status(400).json({ message: 'Indica el concepto que deben poner en el Bizum' });
   }
 
   try {

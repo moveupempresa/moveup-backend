@@ -18,6 +18,9 @@ const packSchema = new mongoose.Schema(
     // Where to send Bizum/PayPal payment (phone number, PayPal.me link...).
     // Not used for offline (cash) or online (in-app) packs.
     paymentDetails: { type: String, default: null, trim: true, maxlength: 300 },
+    // The Bizum "concepto" the payer must enter, so the organizer can match
+    // the incoming transfer to this pack/registrant. Bizum-only.
+    bizumConcept: { type: String, default: null, trim: true, maxlength: 140 },
     packType: { type: String, enum: PACK_TYPES, required: true },
     approvalMode: { type: String, enum: APPROVAL_MODES, required: true },
     maxSelectableSessions: { type: Number, default: null },
