@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const PAYMENT_TYPES = ['bizum', 'paypal', 'offline', 'online'];
 const PACK_TYPES = ['fixed', 'customizable'];
 const APPROVAL_MODES = ['automatic', 'manual'];
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'MXN', 'COP', 'ARS', 'PEN', 'CLP', 'BRL'];
 
 const packSchema = new mongoose.Schema(
   {
@@ -14,6 +15,7 @@ const packSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     description: { type: String, default: null, trim: true },
     price: { type: mongoose.Schema.Types.Decimal128, required: true },
+    currency: { type: String, enum: CURRENCIES, default: 'EUR', required: true },
     paymentType: { type: String, enum: PAYMENT_TYPES, required: true },
     // Where to send Bizum/PayPal payment (phone number, PayPal.me link...).
     // Not used for offline (cash) or online (in-app) packs.
@@ -49,3 +51,4 @@ module.exports = Pack;
 module.exports.PAYMENT_TYPES = PAYMENT_TYPES;
 module.exports.PACK_TYPES = PACK_TYPES;
 module.exports.APPROVAL_MODES = APPROVAL_MODES;
+module.exports.CURRENCIES = CURRENCIES;

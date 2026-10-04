@@ -17,6 +17,7 @@ const createPack = async (req, res) => {
     name,
     description,
     price,
+    currency,
     paymentType,
     paymentDetails,
     bizumConcept,
@@ -51,6 +52,7 @@ const createPack = async (req, res) => {
       name,
       description: description || null,
       price,
+      currency,
       paymentType,
       paymentDetails: paymentDetails || null,
       bizumConcept: bizumConcept || null,
@@ -96,6 +98,7 @@ const updatePack = async (req, res) => {
     name,
     description,
     price,
+    currency,
     paymentType,
     paymentDetails,
     bizumConcept,
@@ -121,6 +124,7 @@ const updatePack = async (req, res) => {
   if (name !== undefined) pack.name = name;
   if (description !== undefined) pack.description = description || null;
   if (price !== undefined) pack.price = price;
+  if (currency !== undefined) pack.currency = currency;
   if (paymentType !== undefined) pack.paymentType = paymentType;
   if (paymentDetails !== undefined) pack.paymentDetails = paymentDetails || null;
   if (bizumConcept !== undefined) pack.bizumConcept = bizumConcept || null;
