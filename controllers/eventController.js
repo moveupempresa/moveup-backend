@@ -6,6 +6,7 @@ const User = require('../models/User');
 const Profile = require('../models/Profile');
 const SavedEvent = require('../models/SavedEvent');
 const Follow = require('../models/Follow');
+const Favorite = require('../models/Favorite');
 const Notification = require('../models/Notification');
 const Registration = require('../models/Registration');
 const CancelledReservation = require('../models/CancelledReservation');
@@ -14,18 +15,20 @@ const { geocodeLocation } = require('../utils/geocode');
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const notifyFollowersOfNewEvent = async (event) => {
+// Discovery notifications follow Favoritos, not Follows - following someone
+// doesn't mean wanting every one of their updates (see Favorite model).
+const notifyFavoritesOfNewEvent = async (event) => {
   if (event.visibility !== 'public') return;
 
-  const [followers, owner] = await Promise.all([
-    Follow.find({ followingId: event.ownerUserId }),
+  const [favorites, owner] = await Promise.all([
+    Favorite.find({ favoriteUserId: event.ownerUserId }),
     User.findById(event.ownerUserId),
   ]);
-  if (!owner || followers.length === 0) return;
+  if (!owner || favorites.length === 0) return;
 
   await Notification.insertMany(
-    followers.map((follow) => ({
-      userId: follow.followerId,
+    favorites.map((favorite) => ({
+      userId: favorite.userId,
       type: 'followed_user_new_event',
       message: `${owner.username} ha publicado un nuevo evento: ${event.title}`,
       relatedUserId: event.ownerUserId,
@@ -105,7 +108,7 @@ const createEvent = async (req, res) => {
     throw err;
   }
 
-  if (event.status === 'published') await notifyFollowersOfNewEvent(event);
+  if (event.status === 'published') await notifyFavoritesOfNewEvent(event);
 
   return res.status(201).json({ event: event.toJSON() });
 };
@@ -204,7 +207,7 @@ const updateEvent = async (req, res) => {
   if (removeCoverImage === 'true' && previousCoverImageUrl) deleteUploadedFile(previousCoverImageUrl);
   if (removeCoverVideo === 'true' && previousCoverVideoUrl) deleteUploadedFile(previousCoverVideoUrl);
 
-  if (isNewlyPublished) await notifyFollowersOfNewEvent(event);
+  if (isNewlyPublished) await notifyFavoritesOfNewEvent(event);
   if (isNewlyCancelled) {
     const affectedRegistrations = await Registration.find({
       eventId: event._id,

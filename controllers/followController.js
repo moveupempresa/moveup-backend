@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Follow = require('../models/Follow');
+const Favorite = require('../models/Favorite');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Notification = require('../models/Notification');
@@ -65,13 +66,14 @@ const getMyFollowing = async (req, res) => {
   if (follows.length === 0) return res.json({ profiles: [] });
 
   const followingIds = follows.map((f) => f.followingId);
-  const [users, profiles, followerCounts] = await Promise.all([
+  const [users, profiles, followerCounts, myFavorites] = await Promise.all([
     User.find({ _id: { $in: followingIds } }),
     Profile.find({ userId: { $in: followingIds } }),
     Follow.aggregate([
       { $match: { followingId: { $in: followingIds } } },
       { $group: { _id: '$followingId', count: { $sum: 1 } } },
     ]),
+    Favorite.find({ userId: req.userId, favoriteUserId: { $in: followingIds } }),
   ]);
 
   const usernameByUser = {};
@@ -80,6 +82,7 @@ const getMyFollowing = async (req, res) => {
   for (const p of profiles) profileByUser[p.userId.toString()] = p.toJSON();
   const countByUser = {};
   for (const c of followerCounts) countByUser[c._id.toString()] = c.count;
+  const iFavoriteSet = new Set(myFavorites.map((f) => f.favoriteUserId.toString()));
 
   const profilesResult = follows
     .map((f) => f.followingId.toString())
@@ -96,6 +99,7 @@ const getMyFollowing = async (req, res) => {
       experience: profileByUser[id].experience,
       followersCount: countByUser[id] || 0,
       isFollowing: true,
+      isFavorite: iFavoriteSet.has(id),
     }));
 
   return res.json({ profiles: profilesResult });
@@ -106,7 +110,7 @@ const getMyFollowers = async (req, res) => {
   if (follows.length === 0) return res.json({ profiles: [] });
 
   const followerIds = follows.map((f) => f.followerId);
-  const [users, profiles, followerCounts, myFollowing] = await Promise.all([
+  const [users, profiles, followerCounts, myFollowing, myFavorites] = await Promise.all([
     User.find({ _id: { $in: followerIds } }),
     Profile.find({ userId: { $in: followerIds } }),
     Follow.aggregate([
@@ -114,6 +118,7 @@ const getMyFollowers = async (req, res) => {
       { $group: { _id: '$followingId', count: { $sum: 1 } } },
     ]),
     Follow.find({ followerId: req.userId, followingId: { $in: followerIds } }),
+    Favorite.find({ userId: req.userId, favoriteUserId: { $in: followerIds } }),
   ]);
 
   const usernameByUser = {};
@@ -123,6 +128,7 @@ const getMyFollowers = async (req, res) => {
   const countByUser = {};
   for (const c of followerCounts) countByUser[c._id.toString()] = c.count;
   const iFollowSet = new Set(myFollowing.map((f) => f.followingId.toString()));
+  const iFavoriteSet = new Set(myFavorites.map((f) => f.favoriteUserId.toString()));
 
   const profilesResult = follows
     .map((f) => f.followerId.toString())
@@ -139,6 +145,7 @@ const getMyFollowers = async (req, res) => {
       experience: profileByUser[id].experience,
       followersCount: countByUser[id] || 0,
       isFollowing: iFollowSet.has(id),
+      isFavorite: iFavoriteSet.has(id),
     }));
 
   return res.json({ profiles: profilesResult });

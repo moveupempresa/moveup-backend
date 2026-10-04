@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Profile = require('../models/Profile');
 const User = require('../models/User');
 const Follow = require('../models/Follow');
+const Favorite = require('../models/Favorite');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 const { geocodeLocation } = require('../utils/geocode');
 
@@ -19,11 +20,12 @@ const getUserProfile = async (req, res) => {
     return res.status(404).json({ message: 'Perfil no encontrado' });
   }
 
-  const [profile, user, followersCount, isFollowing] = await Promise.all([
+  const [profile, user, followersCount, isFollowing, isFavorite] = await Promise.all([
     Profile.findOne({ userId }),
     User.findById(userId),
     Follow.countDocuments({ followingId: userId }),
     Follow.exists({ followerId: req.userId, followingId: userId }),
+    Favorite.exists({ userId: req.userId, favoriteUserId: userId }),
   ]);
   if (!profile || !user) {
     return res.status(404).json({ message: 'Perfil no encontrado' });
@@ -34,6 +36,7 @@ const getUserProfile = async (req, res) => {
     username: user.username,
     followersCount,
     isFollowing: Boolean(isFollowing),
+    isFavorite: Boolean(isFavorite),
     contact: buildContactInfo(user, profile),
   });
 };

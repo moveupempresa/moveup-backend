@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Follow = require('../models/Follow');
+const Favorite = require('../models/Favorite');
 const { sendEmailChangeCode } = require('../utils/mailer');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -35,7 +36,7 @@ const searchProfiles = async (req, res) => {
   if (matchedIds.length === 0) return res.json({ profiles: [] });
 
   const objectIds = matchedIds.map((id) => new mongoose.Types.ObjectId(id));
-  const [users, profiles, followerCounts, viewerFollowing] = await Promise.all([
+  const [users, profiles, followerCounts, viewerFollowing, viewerFavorites] = await Promise.all([
     User.find({ _id: { $in: objectIds } }),
     Profile.find({ userId: { $in: objectIds } }),
     Follow.aggregate([
@@ -43,6 +44,7 @@ const searchProfiles = async (req, res) => {
       { $group: { _id: '$followingId', count: { $sum: 1 } } },
     ]),
     Follow.find({ followerId: req.userId, followingId: { $in: objectIds } }),
+    Favorite.find({ userId: req.userId, favoriteUserId: { $in: objectIds } }),
   ]);
 
   const usernameByUser = {};
@@ -52,6 +54,7 @@ const searchProfiles = async (req, res) => {
   const countByUser = {};
   for (const c of followerCounts) countByUser[c._id.toString()] = c.count;
   const followingSet = new Set(viewerFollowing.map((f) => f.followingId.toString()));
+  const favoriteSet = new Set(viewerFavorites.map((f) => f.favoriteUserId.toString()));
 
   const results = matchedIds
     .filter((id) => profileByUser[id])
@@ -67,6 +70,7 @@ const searchProfiles = async (req, res) => {
       experience: profileByUser[id].experience,
       followersCount: countByUser[id] || 0,
       isFollowing: followingSet.has(id),
+      isFavorite: favoriteSet.has(id),
     }))
     .sort((a, b) => a.username.localeCompare(b.username));
 

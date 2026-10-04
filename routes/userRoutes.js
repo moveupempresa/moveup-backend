@@ -18,6 +18,11 @@ const {
   getMyFollowers,
 } = require('../controllers/followController');
 const {
+  addFavorite,
+  removeFavorite,
+  getMyFavorites,
+} = require('../controllers/favoriteController');
+const {
   getMyReservations,
   getMyCancelledReservations,
   getMyPendingRequests,
@@ -86,6 +91,7 @@ router.get('/me/cancelled-reservations', getMyCancelledReservations);
 router.get('/me/pending-requests', getMyPendingRequests);
 router.get('/me/following', getMyFollowing);
 router.get('/me/followers', getMyFollowers);
+router.get('/me/favorites', getMyFavorites);
 router.get('/me/calendar-notes', getMyCalendarNotes);
 router.put('/me/calendar-notes/:date', setCalendarNote);
 router.delete('/me/calendar-notes/:date', deleteCalendarNote);
@@ -96,5 +102,7 @@ router.post('/me/confirm-email-change', passwordResetRateLimit, confirmEmailChan
 router.delete('/me', userRateLimit, deleteAccount);
 router.post('/:userId/follow', userRateLimit, followUser);
 router.delete('/:userId/follow', userRateLimit, unfollowUser);
+router.post('/:userId/favorite', userRateLimit, addFavorite);
+router.delete('/:userId/favorite', userRateLimit, removeFavorite);
 
 module.exports = router;
