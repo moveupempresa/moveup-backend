@@ -374,6 +374,30 @@ const attachSessionsAndPacks = async (events, viewerId) => {
   const displayNameByOwner = {};
   for (const profile of ownerProfiles) displayNameByOwner[profile.userId] = profile.displayName;
 
+  // Whichever of the creator's contact methods they've chosen to show
+  // (Settings > Métodos de contacto) - surfaced on their events' cards so
+  // attendees can reach out without the creator re-entering it per event.
+  const userByOwner = {};
+  for (const owner of owners) userByOwner[owner.id] = owner;
+  const profileByOwner = {};
+  for (const profile of ownerProfiles) profileByOwner[profile.userId] = profile;
+
+  const creatorContactByOwner = {};
+  for (const ownerId of ownerIds) {
+    const user = userByOwner[ownerId];
+    const profile = profileByOwner[ownerId];
+    if (!user || !profile) continue;
+    const cm = profile.contactMethods || {};
+    const contact = {};
+    if (cm.phone && user.phone) contact.phone = user.phone;
+    if (cm.email) contact.email = user.email;
+    if (cm.social?.enabled && cm.social.platform) {
+      const value = profile.socialLinks?.[cm.social.platform];
+      if (value) contact.social = { platform: cm.social.platform, value };
+    }
+    creatorContactByOwner[ownerId] = Object.keys(contact).length > 0 ? contact : null;
+  }
+
   const savedEventIds = new Set(savedEvents.map((s) => s.eventId.toString()));
 
   return events.map((event) => {
@@ -382,6 +406,7 @@ const attachSessionsAndPacks = async (events, viewerId) => {
     eventJson.packs = packsByEvent[event.id] || [];
     eventJson.ownerUsername = usernameByOwner[event.ownerUserId.toString()] || '';
     eventJson.ownerDisplayName = displayNameByOwner[event.ownerUserId.toString()] || '';
+    eventJson.creatorContact = creatorContactByOwner[event.ownerUserId.toString()] || null;
     eventJson.isSaved = savedEventIds.has(event.id);
     return eventJson;
   });

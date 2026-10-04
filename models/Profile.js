@@ -40,6 +40,21 @@ const profileSchema = new mongoose.Schema(
       facebook: { type: String, default: '', trim: true },
       twitter: { type: String, default: '', trim: true },
     },
+    // Which of the user's already-filled-in fields (User.phone, User.email,
+    // one of socialLinks above) are surfaced as their contact info - on
+    // their profile, and (for event creators) on their events' cards.
+    contactMethods: {
+      phone: { type: Boolean, default: false },
+      email: { type: Boolean, default: false },
+      social: {
+        enabled: { type: Boolean, default: false },
+        platform: {
+          type: String,
+          enum: ['instagram', 'tiktok', 'youtube', 'facebook', 'twitter'],
+          default: null,
+        },
+      },
+    },
   },
   {
     timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },

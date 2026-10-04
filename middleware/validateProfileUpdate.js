@@ -4,12 +4,12 @@ const isString = (v) => typeof v === 'string';
 const validateProfileUpdate = (req, res, next) => {
   const {
     displayName, artisticName, bio, city, country,
-    websiteUrl, cvUrl, experience, socialLinks,
+    websiteUrl, cvUrl, experience, socialLinks, contactMethods,
   } = req.body;
 
   const hasAnyField = [
     displayName, artisticName, bio, city, country,
-    websiteUrl, cvUrl, experience, socialLinks,
+    websiteUrl, cvUrl, experience, socialLinks, contactMethods,
   ].some((v) => v !== undefined);
 
   if (!hasAnyField) {
@@ -51,6 +51,35 @@ const validateProfileUpdate = (req, res, next) => {
         return res.status(400).json({ message: 'Invalid request body' });
       }
       req.body.socialLinks[key] = socialLinks[key].trim();
+    }
+  }
+
+  if (contactMethods !== undefined) {
+    if (typeof contactMethods !== 'object' || Array.isArray(contactMethods)) {
+      return res.status(400).json({ message: 'Invalid request body' });
+    }
+    const { phone, email, social } = contactMethods;
+    if (phone !== undefined && typeof phone !== 'boolean') {
+      return res.status(400).json({ message: 'Invalid request body' });
+    }
+    if (email !== undefined && typeof email !== 'boolean') {
+      return res.status(400).json({ message: 'Invalid request body' });
+    }
+    if (social !== undefined) {
+      if (typeof social !== 'object' || Array.isArray(social)) {
+        return res.status(400).json({ message: 'Invalid request body' });
+      }
+      const { enabled, platform } = social;
+      if (enabled !== undefined && typeof enabled !== 'boolean') {
+        return res.status(400).json({ message: 'Invalid request body' });
+      }
+      if (
+        platform !== undefined &&
+        platform !== null &&
+        !SOCIAL_LINK_KEYS.includes(platform)
+      ) {
+        return res.status(400).json({ message: 'Invalid request body' });
+      }
     }
   }
 

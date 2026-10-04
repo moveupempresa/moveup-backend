@@ -34,13 +34,30 @@ const getUserProfile = async (req, res) => {
     username: user.username,
     followersCount,
     isFollowing: Boolean(isFollowing),
+    contact: buildContactInfo(user, profile),
   });
+};
+
+// Resolves a profile's chosen contact methods to their actual values -
+// only ever includes a field the user explicitly opted into showing, since
+// this is sent to other users' clients (unlike the owner's own session,
+// which already has their full User/Profile and needs no resolving).
+const buildContactInfo = (user, profile) => {
+  const cm = profile.contactMethods || {};
+  const contact = {};
+  if (cm.phone && user.phone) contact.phone = user.phone;
+  if (cm.email) contact.email = user.email;
+  if (cm.social?.enabled && cm.social.platform) {
+    const value = profile.socialLinks?.[cm.social.platform];
+    if (value) contact.social = { platform: cm.social.platform, value };
+  }
+  return Object.keys(contact).length > 0 ? contact : null;
 };
 
 const updateMyProfile = async (req, res) => {
   const {
     displayName, artisticName, bio, city, country,
-    websiteUrl, cvUrl, experience, socialLinks,
+    websiteUrl, cvUrl, experience, socialLinks, contactMethods,
   } = req.body;
 
   const existing = await Profile.findOne({ userId: req.userId });
@@ -61,6 +78,52 @@ const updateMyProfile = async (req, res) => {
     for (const key of Object.keys(socialLinks)) {
       update[`socialLinks.${key}`] = socialLinks[key];
     }
+  }
+
+  if (contactMethods !== undefined) {
+    const phone = contactMethods.phone ?? existing.contactMethods.phone;
+    const email = contactMethods.email ?? existing.contactMethods.email;
+    const socialInput = contactMethods.social ?? {};
+    const socialEnabled =
+      socialInput.enabled ?? existing.contactMethods.social.enabled;
+    const socialPlatform =
+      socialInput.platform !== undefined
+        ? socialInput.platform
+        : existing.contactMethods.social.platform;
+
+    if (!phone && !email && !socialEnabled) {
+      return res
+        .status(400)
+        .json({ message: 'Selecciona al menos un método de contacto' });
+    }
+
+    if (phone) {
+      const user = await User.findById(req.userId);
+      if (!user?.phone) {
+        return res.status(400).json({
+          message: 'Añade un número de teléfono antes de seleccionarlo como método de contacto',
+        });
+      }
+    }
+
+    if (socialEnabled) {
+      if (!socialPlatform) {
+        return res
+          .status(400)
+          .json({ message: 'Selecciona una red social' });
+      }
+      const futureValue = socialLinks?.[socialPlatform] ?? existing.socialLinks[socialPlatform];
+      if (!futureValue) {
+        return res.status(400).json({
+          message: 'Añade el enlace o usuario de esa red social antes de seleccionarla como método de contacto',
+        });
+      }
+    }
+
+    update['contactMethods.phone'] = phone;
+    update['contactMethods.email'] = email;
+    update['contactMethods.social.enabled'] = socialEnabled;
+    update['contactMethods.social.platform'] = socialEnabled ? socialPlatform : null;
   }
 
   const locationChanged =
