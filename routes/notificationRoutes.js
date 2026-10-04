@@ -1,5 +1,9 @@
 const express = require('express');
-const { getMyNotifications, markAllAsRead } = require('../controllers/notificationController');
+const {
+  getMyNotifications,
+  markAllAsRead,
+  markAsRead,
+} = require('../controllers/notificationController');
 const requireAuth = require('../middleware/requireAuth');
 const userRateLimit = require('../middleware/userRateLimit');
 
@@ -11,5 +15,6 @@ router.use(requireAuth);
 // mutating action is rate limited.
 router.get('/', getMyNotifications);
 router.post('/mark-read', userRateLimit, markAllAsRead);
+router.patch('/:id/read', userRateLimit, markAsRead);
 
 module.exports = router;

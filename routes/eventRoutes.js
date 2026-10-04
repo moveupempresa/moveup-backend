@@ -4,6 +4,7 @@ const {
   updateEvent,
   deleteEvent,
   getMyEvents,
+  getEvent,
   getPublicEvents,
   saveEvent,
   unsaveEvent,
@@ -54,6 +55,7 @@ router.post('/', userRateLimit, handleCoverUpload, createEvent);
 router.get('/', getPublicEvents);
 router.get('/my', getMyEvents);
 router.get('/explore-sections', getExploreSections);
+router.get('/:eventId', getEvent);
 router.put('/:eventId', userRateLimit, handleCoverUpload, updateEvent);
 router.delete('/:eventId', userRateLimit, deleteEvent);
 router.get('/:eventId/sessions', getEventSessions);

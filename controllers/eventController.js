@@ -421,6 +421,21 @@ const getMyEvents = async (req, res) => {
   return res.json({ events: result });
 };
 
+// Single-event lookup by id - used for deep-linking (e.g. a notification
+// tap) where only the id is known, not the full Event object.
+const getEvent = async (req, res) => {
+  const { eventId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(eventId)) {
+    return res.status(404).json({ message: 'Evento no encontrado' });
+  }
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+
+  const [result] = await attachSessionsAndPacks([event], req.userId);
+  return res.json({ event: result });
+};
+
 const getPublicEvents = async (req, res) => {
   const { title, city, style, username, userId, dateFrom, dateTo, maxPrice, eventType, savedOnly } =
     req.query;
@@ -508,6 +523,7 @@ module.exports = {
   updateEvent,
   deleteEvent,
   getMyEvents,
+  getEvent,
   getPublicEvents,
   saveEvent,
   unsaveEvent,

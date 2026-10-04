@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const Registration = require('../models/Registration');
 
@@ -37,4 +38,22 @@ const markAllAsRead = async (req, res) => {
   return res.status(200).json({ message: 'Notificaciones marcadas como leídas' });
 };
 
-module.exports = { getMyNotifications, markAllAsRead };
+const markAsRead = async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(404).json({ message: 'Notificación no encontrada' });
+  }
+
+  const notification = await Notification.findOneAndUpdate(
+    { _id: id, userId: req.userId },
+    { $set: { read: true } },
+    { new: true }
+  );
+  if (!notification) {
+    return res.status(404).json({ message: 'Notificación no encontrada' });
+  }
+
+  return res.status(200).json({ notification: notification.toJSON() });
+};
+
+module.exports = { getMyNotifications, markAllAsRead, markAsRead };
