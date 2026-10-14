@@ -39,9 +39,11 @@ const {
   rejectPackRequest,
   setPackPaymentStatus,
   payForPack,
+  uploadPaymentProof,
 } = require('../controllers/registrationController');
 const requireAuth = require('../middleware/requireAuth');
 const handleCoverUpload = require('../middleware/uploadCover');
+const handleImageUpload = require('../middleware/upload');
 const userRateLimit = require('../middleware/userRateLimit');
 
 const router = express.Router();
@@ -86,6 +88,12 @@ router.post('/:eventId/packs/:packId/requests/:userId/approve', userRateLimit, a
 router.post('/:eventId/packs/:packId/requests/:userId/reject', userRateLimit, rejectPackRequest);
 router.post('/:eventId/packs/:packId/registrations/:userId/payment', userRateLimit, setPackPaymentStatus);
 router.post('/:eventId/packs/:packId/payment', userRateLimit, payForPack);
+router.post(
+  '/:eventId/packs/:packId/payment-proof',
+  userRateLimit,
+  handleImageUpload,
+  uploadPaymentProof
+);
 router.post('/:eventId/save', userRateLimit, saveEvent);
 router.delete('/:eventId/save', userRateLimit, unsaveEvent);
 
