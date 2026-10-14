@@ -9,12 +9,13 @@ const SavedEvent = require('../models/SavedEvent');
 const CancelledReservation = require('../models/CancelledReservation');
 const { attachSessionsAndPacks } = require('./eventController');
 
-// online/paypal require the attendee to actively "pay" (confirm via the
-// app's payment flow) before their spot is confirmed. Bizum and Efectivo
-// both confirm the spot immediately and rely on the organizer to manually
-// verify/accept the payment afterward, since neither has a gateway the app
-// can check against.
-const SELF_PAY_TYPES = ['online', 'paypal'];
+// online/paypal/bizum are "pago por la app": the spot sits at
+// awaiting_payment until payment happens, same as the booking flow, even
+// though only online/paypal self-confirm (payForPack) - Bizum has no
+// gateway to verify against, so its confirmation instead happens when the
+// organizer accepts the claim (see setPackPaymentStatus). Efectivo is the
+// only type that still confirms the spot immediately with no payment gate.
+const SELF_PAY_TYPES = ['online', 'paypal', 'bizum'];
 
 // Notifies everyone who bookmarked this event (Descubrimiento > Eventos
 // guardados), excluding anyone already notified through another channel.
@@ -642,7 +643,27 @@ const setPackPaymentStatus = async (req, res) => {
   if (!registration) return res.status(404).json({ message: 'Inscripción no encontrada' });
 
   registration.hasPaid = Boolean(req.body?.hasPaid);
+
+  // Bizum is self-pay (see SELF_PAY_TYPES), so the spot sits at
+  // awaiting_payment until this moment - accepting the payment here is what
+  // actually confirms it. Efectivo is already confirmed by this point, so
+  // this never applies to it.
+  const nowConfirmed =
+    pack.paymentType === 'bizum' &&
+    registration.hasPaid &&
+    registration.status === 'awaiting_payment';
+  if (nowConfirmed) registration.status = 'confirmed';
+
   await registration.save();
+
+  if (nowConfirmed) {
+    await Notification.create({
+      userId,
+      type: 'signed_up',
+      message: `Te has inscrito a ${TARGET_CONFIG.pack.label(pack)}`,
+      relatedEventId: eventId,
+    });
+  }
 
   return res.status(200).json({ hasPaid: registration.hasPaid });
 };
