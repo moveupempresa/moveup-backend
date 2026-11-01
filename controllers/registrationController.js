@@ -96,6 +96,18 @@ const createHandlers = (targetType) => {
     return firstSession ? firstSession.startDatetime : null;
   };
 
+  // Past once every session it covers has already ended - mirrors the
+  // client's own "every session over" convention, so the server rejects a
+  // reservation attempt the UI should already have blocked (a stale client,
+  // a direct API call...).
+  const isTargetPast = async (target) => {
+    const sessions =
+      targetType === 'session' ? [target] : await Session.find({ _id: { $in: target.sessionIds } });
+    if (sessions.length === 0) return false;
+    const now = new Date();
+    return sessions.every((s) => s.endDatetime < now);
+  };
+
   const logCancellation = async ({ userId, event, target, cancelledBy }) => {
     await CancelledReservation.create({
       userId,
@@ -152,6 +164,10 @@ const createHandlers = (targetType) => {
     const targetId = target._id;
     const requiresApproval = targetType === 'pack' && target.approvalMode === 'manual';
     const requiresPayment = targetType === 'pack' && SELF_PAY_TYPES.includes(target.paymentType);
+
+    if (await isTargetPast(target)) {
+      return res.status(400).json({ message: 'Este evento ya ha finalizado' });
+    }
 
     if (!isUnlimited(target)) {
       const confirmedCount = await countConfirmed(targetType, targetId);
@@ -409,6 +425,10 @@ const createHandlers = (targetType) => {
     if (!loaded) return;
     const { target } = loaded;
     const targetId = target._id;
+
+    if (await isTargetPast(target)) {
+      return res.status(400).json({ message: 'Este evento ya ha finalizado' });
+    }
 
     if (isUnlimited(target)) {
       return res.status(400).json({ message: 'Este aforo es ilimitado, puedes inscribirte directamente' });
