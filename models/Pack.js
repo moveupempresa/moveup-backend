@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const PAYMENT_TYPES = ['bizum', 'paypal', 'offline', 'online'];
+const PAYMENT_TYPES = ['bizum', 'paypal', 'offline', 'online', 'bank_transfer'];
 const PACK_TYPES = ['fixed', 'customizable'];
 const APPROVAL_MODES = ['automatic', 'manual'];
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'MXN', 'COP', 'ARS', 'PEN', 'CLP', 'BRL'];
@@ -17,8 +17,9 @@ const packSchema = new mongoose.Schema(
     price: { type: mongoose.Schema.Types.Decimal128, required: true },
     currency: { type: String, enum: CURRENCIES, default: 'EUR', required: true },
     paymentType: { type: String, enum: PAYMENT_TYPES, required: true },
-    // Where to send Bizum/PayPal payment (phone number, PayPal.me link...).
-    // Not used for offline (cash) or online (in-app) packs.
+    // Where/how to pay: Bizum phone, PayPal link/email, bank account IBAN,
+    // or the organizer's external payment link (Stripe, Monei...) for
+    // "online". Not used for offline (cash) packs.
     paymentDetails: { type: String, default: null, trim: true, maxlength: 300 },
     // The Bizum "concepto" the payer must enter, so the organizer can match
     // the incoming transfer to this pack/registrant. Bizum-only.

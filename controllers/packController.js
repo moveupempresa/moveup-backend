@@ -38,8 +38,8 @@ const createPack = async (req, res) => {
     }
   }
 
-  if (['bizum', 'paypal'].includes(paymentType) && !(paymentDetails || '').trim()) {
-    return res.status(400).json({ message: 'Indica dónde deben enviar el pago' });
+  if (paymentType !== 'offline' && !(paymentDetails || '').trim()) {
+    return res.status(400).json({ message: 'Indica dónde o cómo deben realizar el pago' });
   }
   if (paymentType === 'bizum' && !(bizumConcept || '').trim()) {
     return res.status(400).json({ message: 'Indica el concepto que deben poner en el Bizum' });
@@ -134,8 +134,8 @@ const updatePack = async (req, res) => {
     pack.maxSelectableSessions = maxSelectableSessions != null ? Number(maxSelectableSessions) : null;
   }
 
-  if (['bizum', 'paypal'].includes(pack.paymentType) && !(pack.paymentDetails || '').trim()) {
-    return res.status(400).json({ message: 'Indica dónde deben enviar el pago' });
+  if (pack.paymentType !== 'offline' && !(pack.paymentDetails || '').trim()) {
+    return res.status(400).json({ message: 'Indica dónde o cómo deben realizar el pago' });
   }
   if (pack.paymentType === 'bizum' && !(pack.bizumConcept || '').trim()) {
     return res.status(400).json({ message: 'Indica el concepto que deben poner en el Bizum' });

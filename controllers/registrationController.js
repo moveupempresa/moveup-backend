@@ -10,13 +10,12 @@ const CancelledReservation = require('../models/CancelledReservation');
 const { attachSessionsAndPacks } = require('./eventController');
 const { deleteUploadedFile } = require('../utils/fileUtils');
 
-// online/paypal/bizum are "pago por la app": the spot sits at
-// awaiting_payment until payment happens, same as the booking flow, even
-// though only online/paypal self-confirm (payForPack) - Bizum has no
-// gateway to verify against, so its confirmation instead happens when the
-// organizer accepts the claim (see setPackPaymentStatus). Efectivo is the
+// online/paypal/bizum/bank_transfer are "pago por la app": the spot sits at
+// awaiting_payment until the payer uploads a screenshot as proof (see
+// uploadPaymentProof), which is what actually confirms it - none of them
+// have a gateway this app can verify against directly. Efectivo is the
 // only type that still confirms the spot immediately with no payment gate.
-const SELF_PAY_TYPES = ['online', 'paypal', 'bizum'];
+const SELF_PAY_TYPES = ['online', 'paypal', 'bizum', 'bank_transfer'];
 
 // Notifies everyone who bookmarked this event (Descubrimiento > Eventos
 // guardados), excluding anyone already notified through another channel.
@@ -672,63 +671,12 @@ const setPackPaymentStatus = async (req, res) => {
   return res.status(200).json({ hasPaid: registration.hasPaid });
 };
 
-const payForPack = async (req, res) => {
-  const { eventId, packId } = req.params;
-
-  const event = await Event.findById(eventId);
-  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
-
-  const pack = await Pack.findOne({ _id: packId, eventId });
-  if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
-
-  const registration = await Registration.findOne({
-    userId: req.userId,
-    targetType: 'pack',
-    targetId: packId,
-  });
-  if (!registration) return res.status(404).json({ message: 'No estás inscrito en este pack' });
-
-  // Bizum has no gateway to verify against, so it doesn't self-confirm here
-  // like online/PayPal - it requires a payment-proof screenshot instead
-  // (see uploadPaymentProof), which is what actually confirms it.
-  if (pack.paymentType === 'bizum') {
-    return res.status(400).json({
-      message: 'Sube una captura del pago por Bizum para confirmar tu plaza',
-    });
-  }
-
-  if (registration.status !== 'awaiting_payment') {
-    return res.status(400).json({ message: 'No tienes un pago pendiente para este pack' });
-  }
-
-  registration.status = 'confirmed';
-  registration.hasPaid = true;
-  await registration.save();
-
-  const payer = await User.findById(req.userId);
-  await Notification.create({
-    userId: req.userId,
-    type: 'signed_up',
-    message: `Te has inscrito a ${TARGET_CONFIG.pack.label(pack)}`,
-    relatedEventId: eventId,
-  });
-  await Notification.create({
-    userId: event.ownerUserId,
-    type: 'pack_paid',
-    message: `${payer.username} ha pagado ${TARGET_CONFIG.pack.label(pack)}`,
-    relatedUserId: req.userId,
-    relatedEventId: eventId,
-    relatedTargetType: 'pack',
-    relatedTargetId: packId,
-  });
-
-  return res.status(200).json({ hasPaid: true });
-};
-
-// Bizum-only: the student uploads a screenshot as proof of payment. This is
-// what confirms the registration (same awaiting_payment -> confirmed
-// transition as payForPack) - the organizer can view the screenshot to
-// verify it, but their review isn't a gate on the student attending.
+// The student uploads a screenshot as proof of payment, for any self-pay
+// type (online/paypal/bizum/bank_transfer) - none of them have a gateway
+// this app can verify against directly. This is what confirms the
+// registration (awaiting_payment -> confirmed) - the organizer can view the
+// screenshot to verify it, but their review isn't a gate on the student
+// attending.
 const uploadPaymentProof = async (req, res) => {
   const { eventId, packId } = req.params;
 
@@ -748,9 +696,9 @@ const uploadPaymentProof = async (req, res) => {
     deleteUploadedFile(uploadedUrl);
     return res.status(404).json({ message: 'Pack no encontrado' });
   }
-  if (pack.paymentType !== 'bizum') {
+  if (!SELF_PAY_TYPES.includes(pack.paymentType)) {
     deleteUploadedFile(uploadedUrl);
-    return res.status(400).json({ message: 'Este pack no se paga por Bizum' });
+    return res.status(400).json({ message: 'Este pack se paga en efectivo, no necesita comprobante' });
   }
 
   const registration = await Registration.findOne({
@@ -774,8 +722,8 @@ const uploadPaymentProof = async (req, res) => {
   const payer = await User.findById(req.userId);
   await Notification.create({
     userId: event.ownerUserId,
-    type: 'bizum_payment_claimed',
-    message: `${payer.username} ha subido un comprobante de pago por Bizum de ${TARGET_CONFIG.pack.label(pack)}`,
+    type: 'payment_proof_submitted',
+    message: `${payer.username} ha subido un comprobante de pago de ${TARGET_CONFIG.pack.label(pack)}`,
     relatedUserId: req.userId,
     relatedEventId: eventId,
     relatedTargetType: 'pack',
@@ -1007,7 +955,6 @@ module.exports = {
   approvePackRequest,
   rejectPackRequest,
   setPackPaymentStatus,
-  payForPack,
   uploadPaymentProof,
   notifyRegistrantsOfUpdate,
   getMyReservations,

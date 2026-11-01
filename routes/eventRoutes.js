@@ -38,7 +38,6 @@ const {
   approvePackRequest,
   rejectPackRequest,
   setPackPaymentStatus,
-  payForPack,
   uploadPaymentProof,
 } = require('../controllers/registrationController');
 const requireAuth = require('../middleware/requireAuth');
@@ -87,7 +86,6 @@ router.delete('/:eventId/packs/:packId/registrations/:userId', userRateLimit, re
 router.post('/:eventId/packs/:packId/requests/:userId/approve', userRateLimit, approvePackRequest);
 router.post('/:eventId/packs/:packId/requests/:userId/reject', userRateLimit, rejectPackRequest);
 router.post('/:eventId/packs/:packId/registrations/:userId/payment', userRateLimit, setPackPaymentStatus);
-router.post('/:eventId/packs/:packId/payment', userRateLimit, payForPack);
 router.post(
   '/:eventId/packs/:packId/payment-proof',
   userRateLimit,
