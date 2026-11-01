@@ -12,7 +12,7 @@ const geocodeLocation = async (city, country) => {
 
   try {
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'MoveUpApp/1.0 (contact@moveupapp.com)' },
+      headers: { 'User-Agent': 'AtryumApp/1.0 (contact@atryumapp.com)' },
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) return null;
