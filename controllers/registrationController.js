@@ -63,8 +63,10 @@ const isPackPast = async (pack) => {
 
 // A session's attendees also include people who joined it through a pack:
 // everyone in a fixed pack that includes this session, or whoever picked
-// this session in a customizable pack.
-const findPackRegistrationsForSession = async (eventId, sessionId) => {
+// this session in a customizable pack. `status` optionally narrows which
+// registrations count (e.g. 'confirmed' for capacity math) - omitted, every
+// status is included, for displaying the full registrant list.
+const findPackRegistrationsForSession = async (eventId, sessionId, status) => {
   const packs = await Pack.find({ eventId });
   const relevantPacks = packs.filter((p) =>
     p.sessionIds.some((id) => id.toString() === sessionId.toString())
@@ -78,6 +80,7 @@ const findPackRegistrationsForSession = async (eventId, sessionId) => {
   const candidateRegs = await Registration.find({
     targetType: 'pack',
     targetId: { $in: relevantPacks.map((p) => p._id) },
+    ...(status ? { status } : {}),
   });
   const registrations = candidateRegs.filter((r) => {
     const pack = packById[r.targetId.toString()];
@@ -89,6 +92,28 @@ const findPackRegistrationsForSession = async (eventId, sessionId) => {
     nameByRegistrationId[r._id.toString()] = packById[r.targetId.toString()].name;
   });
   return { registrations, nameByRegistrationId };
+};
+
+// True occupancy of a session's capacity: direct confirmed signups plus
+// anyone who occupies it indirectly through a confirmed pack (fixed pack
+// covering it, or customizable pack where it was selected).
+const countSessionOccupancy = async (eventId, sessionId) => {
+  const directCount = await countConfirmed('session', sessionId);
+  const { registrations } = await findPackRegistrationsForSession(eventId, sessionId, 'confirmed');
+  return directCount + registrations.length;
+};
+
+// A pack has no capacity of its own - it's full if any session relevant to
+// this booking (every session, for a fixed pack; only the ones actually
+// being selected, for a customizable one) has no room left.
+const packSessionsAreFull = async (eventId, sessionIds) => {
+  for (const sessionId of sessionIds) {
+    const session = await Session.findById(sessionId);
+    if (!session || session.isUnlimitedCapacity || session.capacity == null) continue;
+    const occupancy = await countSessionOccupancy(eventId, sessionId);
+    if (occupancy >= session.capacity) return true;
+  }
+  return false;
 };
 
 const createHandlers = (targetType) => {
@@ -180,8 +205,12 @@ const createHandlers = (targetType) => {
     }
 
     if (!isUnlimited(target)) {
-      const confirmedCount = await countConfirmed(targetType, targetId);
-      if (confirmedCount >= target.capacity) {
+      // Session-only (isUnlimited is always true for packs) - occupancy
+      // must include anyone who's in via a pack covering this session, not
+      // just direct signups, or two packs (or a pack and a direct signup)
+      // could each think there's room and jointly overbook it.
+      const occupancy = await countSessionOccupancy(event._id, targetId);
+      if (occupancy >= target.capacity) {
         return res.status(400).json({
           message: 'Está completo. Únete a la lista de espera para que te avisemos.',
         });
@@ -199,6 +228,12 @@ const createHandlers = (targetType) => {
       const { selectedSessionIds, error: selectionError } = resolveSelectedSessions(req, target);
       if (selectionError) {
         return res.status(400).json({ message: selectionError });
+      }
+      const relevantSessionIds = selectedSessionIds ?? target.sessionIds.map(String);
+      if (await packSessionsAreFull(event._id, relevantSessionIds)) {
+        return res.status(400).json({
+          message: 'Está completo. Únete a la lista de espera para que te avisemos.',
+        });
       }
 
       if (existing) {
@@ -241,6 +276,12 @@ const createHandlers = (targetType) => {
       if (selectionError) {
         return res.status(400).json({ message: selectionError });
       }
+      const relevantSessionIds = selectedSessionIds ?? target.sessionIds.map(String);
+      if (await packSessionsAreFull(event._id, relevantSessionIds)) {
+        return res.status(400).json({
+          message: 'Está completo. Únete a la lista de espera para que te avisemos.',
+        });
+      }
 
       if (existing) {
         existing.status = 'awaiting_payment';
@@ -273,6 +314,14 @@ const createHandlers = (targetType) => {
       const { selectedSessionIds, error: selectionError } = resolveSelectedSessions(req, target);
       if (selectionError) {
         return res.status(400).json({ message: selectionError });
+      }
+      if (targetType === 'pack') {
+        const relevantSessionIds = selectedSessionIds ?? target.sessionIds.map(String);
+        if (await packSessionsAreFull(event._id, relevantSessionIds)) {
+          return res.status(400).json({
+            message: 'Está completo. Únete a la lista de espera para que te avisemos.',
+          });
+        }
       }
 
       if (existing) {
