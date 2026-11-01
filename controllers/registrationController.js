@@ -51,6 +51,16 @@ const TARGET_CONFIG = {
 const countConfirmed = (targetType, targetId) =>
   Registration.countDocuments({ targetType, targetId, status: 'confirmed' });
 
+// Past once every session the pack covers has already ended - same
+// convention as isTargetPast below, for the one pack-only endpoint
+// (uploadPaymentProof) that lives outside the session/pack handler factory.
+const isPackPast = async (pack) => {
+  const sessions = await Session.find({ _id: { $in: pack.sessionIds } });
+  if (sessions.length === 0) return false;
+  const now = new Date();
+  return sessions.every((s) => s.endDatetime < now);
+};
+
 // A session's attendees also include people who joined it through a pack:
 // everyone in a fixed pack that includes this session, or whoever picked
 // this session in a customizable pack.
@@ -376,6 +386,10 @@ const createHandlers = (targetType) => {
     const { event, target } = loaded;
     const targetId = target._id;
 
+    if (await isTargetPast(target)) {
+      return res.status(400).json({ message: 'Este evento ya ha finalizado' });
+    }
+
     const deleted = await Registration.findOneAndDelete({
       userId: req.userId,
       targetType,
@@ -466,6 +480,10 @@ const createHandlers = (targetType) => {
     const loaded = await loadTarget(req, res);
     if (!loaded) return;
     const { target } = loaded;
+
+    if (await isTargetPast(target)) {
+      return res.status(400).json({ message: 'Este evento ya ha finalizado' });
+    }
 
     await Registration.deleteOne({
       userId: req.userId,
@@ -719,6 +737,10 @@ const uploadPaymentProof = async (req, res) => {
   if (!SELF_PAY_TYPES.includes(pack.paymentType)) {
     deleteUploadedFile(uploadedUrl);
     return res.status(400).json({ message: 'Este pack se paga en efectivo, no necesita comprobante' });
+  }
+  if (await isPackPast(pack)) {
+    deleteUploadedFile(uploadedUrl);
+    return res.status(400).json({ message: 'Este evento ya ha finalizado' });
   }
 
   const registration = await Registration.findOne({
