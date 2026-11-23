@@ -2,7 +2,7 @@ const Event = require('../models/Event');
 const Session = require('../models/Session');
 const Pack = require('../models/Pack');
 const Registration = require('../models/Registration');
-const { notifyRegistrantsOfUpdate } = require('./registrationController');
+const { notifyRegistrantsOfUpdate, announceToRegistrants } = require('./registrationController');
 
 const createSession = async (req, res) => {
   const { eventId } = req.params;
@@ -53,6 +53,10 @@ const updateSession = async (req, res) => {
 
   const { name, startDatetime, endDatetime, address, accessUrl, capacity, isUnlimitedCapacity } = req.body;
 
+  const originalStartDatetime = session.startDatetime?.getTime();
+  const originalEndDatetime = session.endDatetime?.getTime();
+  const originalAddress = session.address || null;
+
   if (name !== undefined) session.name = name;
   if (startDatetime !== undefined) session.startDatetime = startDatetime;
   if (endDatetime !== undefined) session.endDatetime = endDatetime;
@@ -74,7 +78,16 @@ const updateSession = async (req, res) => {
     throw err;
   }
 
-  await notifyRegistrantsOfUpdate('session', session._id, eventId, session.name);
+  const scheduleChanged =
+    session.startDatetime?.getTime() !== originalStartDatetime ||
+    session.endDatetime?.getTime() !== originalEndDatetime;
+  const locationChanged = (session.address || null) !== originalAddress;
+  if (scheduleChanged || locationChanged) {
+    await notifyRegistrantsOfUpdate('session', session._id, eventId, session.name, {
+      scheduleChanged,
+      locationChanged,
+    });
+  }
 
   return res.status(200).json({ session: session.toJSON() });
 };
@@ -97,4 +110,31 @@ const deleteSession = async (req, res) => {
   return res.status(200).json({ message: 'Sesión eliminada' });
 };
 
-module.exports = { createSession, getEventSessions, updateSession, deleteSession };
+const announceSession = async (req, res) => {
+  const { eventId, sessionId } = req.params;
+  const message = (req.body?.message || '').trim();
+
+  if (!message) {
+    return res.status(400).json({ message: 'El mensaje es obligatorio' });
+  }
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+  if (event.ownerUserId.toString() !== req.userId) {
+    return res.status(403).json({ message: 'No autorizado' });
+  }
+
+  const session = await Session.findOne({ _id: sessionId, eventId });
+  if (!session) return res.status(404).json({ message: 'Sesión no encontrada' });
+
+  await announceToRegistrants('session', session._id, eventId, session.name, message);
+  return res.status(204).send();
+};
+
+module.exports = {
+  createSession,
+  getEventSessions,
+  updateSession,
+  deleteSession,
+  announceSession,
+};

@@ -10,6 +10,8 @@ const {
   requestEmailChange,
   confirmEmailChange,
   deleteAccount,
+  registerDeviceToken,
+  unregisterDeviceToken,
 } = require('../controllers/userController');
 const {
   followUser,
@@ -100,6 +102,8 @@ router.patch('/me/phone', userRateLimit, changePhone);
 router.post('/me/request-email-change', passwordResetRateLimit, requestEmailChange);
 router.post('/me/confirm-email-change', passwordResetRateLimit, confirmEmailChange);
 router.delete('/me', userRateLimit, deleteAccount);
+router.put('/me/device-token', registerDeviceToken);
+router.delete('/me/device-token', unregisterDeviceToken);
 router.post('/:userId/follow', userRateLimit, followUser);
 router.delete('/:userId/follow', userRateLimit, unfollowUser);
 router.post('/:userId/favorite', userRateLimit, addFavorite);

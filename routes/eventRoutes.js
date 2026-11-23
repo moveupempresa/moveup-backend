@@ -15,12 +15,14 @@ const {
   getEventSessions,
   updateSession,
   deleteSession,
+  announceSession,
 } = require('../controllers/sessionController');
 const {
   createPack,
   getEventPacks,
   updatePack,
   deletePack,
+  announcePack,
 } = require('../controllers/packController');
 const {
   signUpForSession,
@@ -68,6 +70,7 @@ router.delete('/:eventId/sessions/:sessionId/signup', userRateLimit, cancelSessi
 router.post('/:eventId/sessions/:sessionId/waitlist', userRateLimit, joinSessionWaitlist);
 router.delete('/:eventId/sessions/:sessionId/waitlist', userRateLimit, leaveSessionWaitlist);
 router.get('/:eventId/sessions/:sessionId/registrations', getSessionRegistrants);
+router.post('/:eventId/sessions/:sessionId/announce', userRateLimit, announceSession);
 router.post(
   '/:eventId/sessions/:sessionId/registrations/:userId/attendance',
   userRateLimit,
@@ -82,6 +85,7 @@ router.delete('/:eventId/packs/:packId/signup', userRateLimit, cancelPackSignUp)
 router.post('/:eventId/packs/:packId/waitlist', userRateLimit, joinPackWaitlist);
 router.delete('/:eventId/packs/:packId/waitlist', userRateLimit, leavePackWaitlist);
 router.get('/:eventId/packs/:packId/registrations', getPackRegistrants);
+router.post('/:eventId/packs/:packId/announce', userRateLimit, announcePack);
 router.delete('/:eventId/packs/:packId/registrations/:userId', userRateLimit, revokePackRegistration);
 router.post('/:eventId/packs/:packId/requests/:userId/approve', userRateLimit, approvePackRequest);
 router.post('/:eventId/packs/:packId/requests/:userId/reject', userRateLimit, rejectPackRequest);

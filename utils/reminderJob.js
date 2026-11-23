@@ -74,6 +74,22 @@ const runReminderCheck = async () => {
         message: `Tu evento "${event.title}" comienza en 2 horas`,
         relatedEventId: event._id,
       });
+
+      const registrants = await Registration.find({
+        targetType: 'session',
+        targetId: session._id,
+        status: 'confirmed',
+      });
+      if (registrants.length > 0) {
+        await Notification.insertMany(
+          registrants.map((r) => ({
+            userId: r.userId,
+            type: 'event_reminder_student_hours',
+            message: `Tu evento "${event.title}" comienza en 2 horas`,
+            relatedEventId: event._id,
+          }))
+        );
+      }
       session.reminded2HoursSent = true;
       dirty = true;
     }

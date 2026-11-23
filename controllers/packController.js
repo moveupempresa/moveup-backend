@@ -2,7 +2,7 @@ const Event = require('../models/Event');
 const Pack = require('../models/Pack');
 const Session = require('../models/Session');
 const Registration = require('../models/Registration');
-const { notifyRegistrantsOfUpdate } = require('./registrationController');
+const { notifyRegistrantsOfUpdate, announceToRegistrants } = require('./registrationController');
 
 const createPack = async (req, res) => {
   const { eventId } = req.params;
@@ -173,4 +173,31 @@ const deletePack = async (req, res) => {
   return res.status(200).json({ message: 'Pack eliminado' });
 };
 
-module.exports = { createPack, getEventPacks, updatePack, deletePack };
+const announcePack = async (req, res) => {
+  const { eventId, packId } = req.params;
+  const message = (req.body?.message || '').trim();
+
+  if (!message) {
+    return res.status(400).json({ message: 'El mensaje es obligatorio' });
+  }
+
+  const event = await Event.findById(eventId);
+  if (!event) return res.status(404).json({ message: 'Evento no encontrado' });
+  if (event.ownerUserId.toString() !== req.userId) {
+    return res.status(403).json({ message: 'No autorizado' });
+  }
+
+  const pack = await Pack.findOne({ _id: packId, eventId });
+  if (!pack) return res.status(404).json({ message: 'Pack no encontrado' });
+
+  await announceToRegistrants('pack', pack._id, eventId, pack.name, message);
+  return res.status(204).send();
+};
+
+module.exports = {
+  createPack,
+  getEventPacks,
+  updatePack,
+  deletePack,
+  announcePack,
+};

@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Profile = require('../models/Profile');
 const Follow = require('../models/Follow');
 const Favorite = require('../models/Favorite');
+const DeviceToken = require('../models/DeviceToken');
 const { sendEmailChangeCode } = require('../utils/mailer');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -182,7 +183,36 @@ const confirmEmailChange = async (req, res) => {
 
 const deleteAccount = async (req, res) => {
   await Profile.deleteOne({ userId: req.userId });
+  await DeviceToken.deleteMany({ userId: req.userId });
   await User.findByIdAndDelete(req.userId);
+  return res.status(204).send();
+};
+
+// A token belongs to one device, so re-registering it (e.g. a different
+// account logging in on the same phone) just reassigns it to the new user.
+const registerDeviceToken = async (req, res) => {
+  const { token, platform } = req.body;
+
+  if (typeof token !== 'string' || !token.trim()) {
+    return res.status(400).json({ message: 'token es obligatorio' });
+  }
+  if (platform !== 'ios' && platform !== 'android') {
+    return res.status(400).json({ message: 'platform debe ser ios o android' });
+  }
+
+  await DeviceToken.findOneAndUpdate(
+    { token: token.trim() },
+    { userId: req.userId, platform },
+    { upsert: true }
+  );
+  return res.status(204).send();
+};
+
+const unregisterDeviceToken = async (req, res) => {
+  const { token } = req.body;
+  if (typeof token === 'string' && token.trim()) {
+    await DeviceToken.deleteOne({ token: token.trim(), userId: req.userId });
+  }
   return res.status(204).send();
 };
 
@@ -194,4 +224,6 @@ module.exports = {
   requestEmailChange,
   confirmEmailChange,
   deleteAccount,
+  registerDeviceToken,
+  unregisterDeviceToken,
 };

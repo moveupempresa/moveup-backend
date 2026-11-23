@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { sendPushToUser, PUSH_ENABLED_TYPES } = require('../utils/push');
 
 const NOTIFICATION_TYPES = [
   'followed_user',
@@ -28,8 +29,11 @@ const NOTIFICATION_TYPES = [
   'event_reminder_organizer_day',
   'event_reminder_organizer_hours',
   'event_reminder_student',
+  'event_reminder_student_hours',
   'saved_event_reminder',
   'phone_number_required',
+  'location_updated',
+  'organizer_announcement',
 ];
 
 const TARGET_TYPES = ['session', 'pack'];
@@ -81,6 +85,23 @@ const notificationSchema = new mongoose.Schema(
     },
   }
 );
+
+// Only fires on creation - marking a notification as read goes through
+// updateMany/findOneAndUpdate elsewhere, which skip 'save' middleware.
+notificationSchema.post('save', function (doc) {
+  if (!PUSH_ENABLED_TYPES.has(doc.type)) return;
+
+  sendPushToUser(doc.userId, {
+    title: 'Atryum',
+    body: doc.message,
+    data: {
+      notificationType: doc.type,
+      relatedEventId: doc.relatedEventId,
+      relatedTargetType: doc.relatedTargetType,
+      relatedTargetId: doc.relatedTargetId,
+    },
+  }).catch((err) => console.error('Push notification failed:', err));
+});
 
 const Notification = mongoose.model('Notification', notificationSchema);
 

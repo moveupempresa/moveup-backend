@@ -869,7 +869,13 @@ const markSessionAttendance = async (req, res) => {
   return res.status(200).json({ attended });
 };
 
-const notifyRegistrantsOfUpdate = async (targetType, targetId, eventId, targetName) => {
+const notifyRegistrantsOfUpdate = async (
+  targetType,
+  targetId,
+  eventId,
+  targetName,
+  { scheduleChanged = true, locationChanged = false } = {}
+) => {
   const registrations = await Registration.find({
     targetType,
     targetId,
@@ -877,16 +883,49 @@ const notifyRegistrantsOfUpdate = async (targetType, targetId, eventId, targetNa
   });
   if (registrations.length === 0) return;
 
-  const message =
-    targetType === 'session'
-      ? `La sesión "${targetName}" que reservaste ha sido modificada`
-      : `El pack "${targetName}" que reservaste ha sido modificado`;
+  const notices = [];
+  if (locationChanged) {
+    notices.push({
+      type: 'location_updated',
+      message: `La ubicación de "${targetName}" que reservaste ha cambiado`,
+    });
+  }
+  if (scheduleChanged) {
+    notices.push({
+      type: 'target_updated',
+      message:
+        targetType === 'session'
+          ? `La sesión "${targetName}" que reservaste ha sido modificada`
+          : `El pack "${targetName}" que reservaste ha sido modificado`,
+    });
+  }
+  if (notices.length === 0) return;
+
+  await Notification.insertMany(
+    registrations.flatMap((r) =>
+      notices.map((notice) => ({
+        userId: r.userId,
+        type: notice.type,
+        message: notice.message,
+        relatedEventId: eventId,
+      }))
+    )
+  );
+};
+
+const announceToRegistrants = async (targetType, targetId, eventId, targetName, message) => {
+  const registrations = await Registration.find({
+    targetType,
+    targetId,
+    status: { $in: ['confirmed', 'waitlisted', 'pending', 'awaiting_payment'] },
+  });
+  if (registrations.length === 0) return;
 
   await Notification.insertMany(
     registrations.map((r) => ({
       userId: r.userId,
-      type: 'target_updated',
-      message,
+      type: 'organizer_announcement',
+      message: `${targetName}: ${message}`,
       relatedEventId: eventId,
     }))
   );
@@ -1048,6 +1087,7 @@ module.exports = {
   setPackPaymentStatus,
   uploadPaymentProof,
   notifyRegistrantsOfUpdate,
+  announceToRegistrants,
   getMyReservations,
   getMyCancelledReservations,
   getMyPendingRequests,
