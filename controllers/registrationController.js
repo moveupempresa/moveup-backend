@@ -71,7 +71,7 @@ const findPackRegistrationsForSession = async (eventId, sessionId, status) => {
   const relevantPacks = packs.filter((p) =>
     p.sessionIds.some((id) => id.toString() === sessionId.toString())
   );
-  if (relevantPacks.length === 0) return { registrations: [], nameByRegistrationId: {} };
+  if (relevantPacks.length === 0) return { registrations: [], packInfoByRegistrationId: {} };
 
   const packById = {};
   relevantPacks.forEach((p) => {
@@ -87,11 +87,16 @@ const findPackRegistrationsForSession = async (eventId, sessionId, status) => {
     return pack.packType === 'fixed' ||
       (r.selectedSessionIds || []).some((id) => id.toString() === sessionId.toString());
   });
-  const nameByRegistrationId = {};
+  const packInfoByRegistrationId = {};
   registrations.forEach((r) => {
-    nameByRegistrationId[r._id.toString()] = packById[r.targetId.toString()].name;
+    const pack = packById[r.targetId.toString()];
+    packInfoByRegistrationId[r._id.toString()] = {
+      name: pack.name,
+      packId: pack._id.toString(),
+      paymentType: pack.paymentType,
+    };
   });
-  return { registrations, nameByRegistrationId };
+  return { registrations, packInfoByRegistrationId };
 };
 
 // True occupancy of a session's capacity: direct confirmed signups plus
@@ -557,9 +562,9 @@ const createHandlers = (targetType) => {
     const directRegistrations = await Registration.find({ targetType, targetId: target._id });
 
     let packRegistrations = [];
-    let packNameByRegistrationId = {};
+    let packInfoByRegistrationId = {};
     if (targetType === 'session') {
-      ({ registrations: packRegistrations, nameByRegistrationId: packNameByRegistrationId } =
+      ({ registrations: packRegistrations, packInfoByRegistrationId } =
         await findPackRegistrationsForSession(event._id, target._id));
     }
 
@@ -584,6 +589,7 @@ const createHandlers = (targetType) => {
     const registrants = allRegistrations.map((r) => {
       const uid = r.userId.toString();
       const profile = profileByUser[uid];
+      const packInfo = packInfoByRegistrationId[r._id.toString()] || null;
       return {
         userId: uid,
         username: usernameById[uid] || '',
@@ -593,7 +599,9 @@ const createHandlers = (targetType) => {
         selectedSessionIds: (r.selectedSessionIds || []).map((id) => id.toString()),
         hasPaid: r.hasPaid,
         paymentProofUrl: r.paymentProofUrl || null,
-        viaPack: packNameByRegistrationId[r._id.toString()] || null,
+        viaPack: packInfo?.name || null,
+        viaPackId: packInfo?.packId || null,
+        viaPackPaymentType: packInfo?.paymentType || null,
         attended: targetType === 'session' &&
           (r.attendedSessionIds || []).some((id) => id.toString() === target._id.toString()),
         createdAt: r.createdAt,
